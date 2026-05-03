@@ -68,3 +68,4 @@ deploy_out.txt
 # Large files
 solana-release/
 solana-release.tar.bz2
+*.pdf
