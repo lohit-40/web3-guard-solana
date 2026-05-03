@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+.env
+.env.local
+*.db
+*.sqlite
+*.sqlite3
+cache.db
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.vercel/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.tsbuildinfo
+
+# Rust / Anchor
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Secrets & Keys
+*.pem
+*.key
+wallet_secrets.txt
+seeded_wallets.txt
+_pubkey.txt
+*.secret
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs & temp
+*.log
+*.txt
+out.txt
+result.txt
+trace.txt
+bulk_interact_results.txt
+temp_addrs.txt
+deploy_out.txt
+
+# Large files
+solana-release/
+solana-release.tar.bz2

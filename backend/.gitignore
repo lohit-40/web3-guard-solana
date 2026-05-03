@@ -1,0 +1,30 @@
+# Environment Variables (contains secrets!)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# SQLite cache
+cache.db
+
+# IDE
+.vscode/
+.idea/
+
+# Local wallet keypairs — NEVER push this file
+wallet_secrets.txt
+
+# Bulk interaction scripts and results — local only
+bulk_interact.py
+bulk_multi_tx.py
+bulk_interact_results.txt
+seeded_wallets.txt
+
