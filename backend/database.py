@@ -5,8 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 DB_URL = os.getenv("DATABASE_URL")
-# Use persistent volume on Fly.io (/data), local cache.db elsewhere
-DB_PATH = "/data/cache.db" if os.path.isdir("/data") else "cache.db"
+DB_PATH = "cache.db"
 
 def get_connection():
     if DB_URL:
