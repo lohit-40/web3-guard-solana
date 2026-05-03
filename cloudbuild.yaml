@@ -7,7 +7,7 @@ steps:
       - 'gcr.io/$PROJECT_ID/web3guard-backend:$COMMIT_SHA'
       - '-f'
       - 'backend/Dockerfile'
-      - '.'
+      - 'backend'
 
   # Step 2: Push to Google Container Registry
   - name: 'gcr.io/cloud-builders/docker'
