@@ -6,12 +6,10 @@ RUN apt-get update && apt-get install -y \
     gcc g++ libssl-dev pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements from backend subfolder
-COPY backend/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all backend source files
-COPY backend/ .
+COPY . .
 
 EXPOSE 8080
 
