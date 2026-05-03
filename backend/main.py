@@ -134,6 +134,9 @@ async def startup_event():
 async def shutdown_event():
     scheduler.shutdown()
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "service": "web3guard-backend"}
 
 
 app.include_router(ci_router, prefix="/api/ci")
