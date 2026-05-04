@@ -348,7 +348,7 @@ export default function App() {
           if (msg.toLowerCase().includes("reject") || msg.toLowerCase().includes("cancel") || msg.toLowerCase().includes("denied")) {
             toast.error("Transaction rejected. Audit result saved locally.", { duration: 4000 });
           } else {
-            toast.error("Solana signing error: " + msg.slice(0, 100), { duration: 5000 });
+            toast.error("Transaction failed (Need Devnet SOL?). Saved off-chain!", { duration: 5000 });
           }
           // Continue without on-chain proof — still show AI report
         }

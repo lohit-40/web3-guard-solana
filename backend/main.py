@@ -128,10 +128,12 @@ async def scout_monitor_job():
 async def startup_event():
     try:
         from database import init_db
+        import fix_db
         init_db()
-        print("[Database] Initialized successfully")
+        fix_db.fix_database()
+        print("[Database] Initialized and seeded successfully")
     except Exception as e:
-        print(f"[Database] Failed to initialize: {e}")
+        print(f"[Database] Failed to initialize/seed: {e}")
         
     scheduler.add_job(scout_monitor_job, 'interval', minutes=1)
     scheduler.start()
