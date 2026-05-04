@@ -48,11 +48,11 @@ export default function ExplorerPage() {
       try {
         const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
         const [statsRes, auditsRes, badgesRes, liveRes, eventsRes] = await Promise.all([
-          fetch(`${API_URL}/explorer/stats`),
-          fetch(`${API_URL}/explorer/audits`),
-          fetch(`${API_URL}/explorer/badges`),
-          fetch(`${API_URL}/metrics/live`),
-          fetch(`${BASE}/monitor/events`)
+          fetch(`${API_URL}/explorer/stats`, { cache: 'no-store' }),
+          fetch(`${API_URL}/explorer/audits`, { cache: 'no-store' }),
+          fetch(`${API_URL}/explorer/badges`, { cache: 'no-store' }),
+          fetch(`${API_URL}/metrics/live`, { cache: 'no-store' }),
+          fetch(`${BASE}/monitor/events`, { cache: 'no-store' })
         ]);
         if (statsRes.ok) {
           const explorerData = await statsRes.json();

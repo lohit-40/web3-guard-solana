@@ -48,7 +48,7 @@ export default function MonitorPage() {
   const fetchWatchlist = useCallback(async () => {
     try {
       setLoading(true);
-      const r = await fetch(`${BASE}/watchlist`);
+      const r = await fetch(`${BASE}/watchlist`, { cache: 'no-store' });
       const d = await r.json();
       const sorted = (d ?? []).sort(
         (a: WatchlistEntry, b: WatchlistEntry) =>

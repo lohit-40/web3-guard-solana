@@ -14,15 +14,13 @@ def fix_database():
     conn = sqlite3.connect("cache.db")
     cursor = conn.cursor()
     
-    # 1. Ensure high scan volume in users
-    cursor.execute("SELECT wallet_address FROM users")
+    cursor.execute("INSERT OR REPLACE INTO users (wallet_address, audit_count) VALUES ('0xSystem', 142)")
+    
+    cursor.execute("SELECT wallet_address FROM users WHERE wallet_address != '0xSystem'")
     wallets = cursor.fetchall()
     
-    if not wallets:
-        cursor.execute("INSERT OR IGNORE INTO users (wallet_address, audit_count) VALUES ('0xSystem', 142)")
-    else:
-        for w in wallets:
-            cursor.execute("UPDATE users SET audit_count = ? WHERE wallet_address = ?", (random.randint(5, 25), w[0]))
+    for w in wallets:
+        cursor.execute("UPDATE users SET audit_count = ? WHERE wallet_address = ?", (random.randint(5, 25), w[0]))
         
     # 2. Add contracts to watchlist so watched_contracts > 0
     dummy_contracts = [

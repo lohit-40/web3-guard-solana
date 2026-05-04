@@ -147,7 +147,7 @@ export default function Dashboard() {
 
   const fetchEvents = useCallback(async () => {
     try {
-      const r = await fetch(`${BASE}/monitor/events?limit=30`);
+      const r = await fetch(`${BASE}/monitor/events?limit=30`, { cache: 'no-store' });
       const d = await r.json();
       setEvents(d.events ?? []);
 
@@ -171,7 +171,7 @@ export default function Dashboard() {
 
   const fetchWatchlist = useCallback(async () => {
     try {
-      const r = await fetch(`${BASE}/watchlist`);
+      const r = await fetch(`${BASE}/watchlist`, { cache: 'no-store' });
       const d = await r.json();
       setWatchlist(d ?? []);
       setStats((s) => ({ ...s, programs_watched: (d ?? []).length }));
@@ -183,7 +183,7 @@ export default function Dashboard() {
 
   const fetchHistory = useCallback(async (prog: string) => {
     try {
-      const r = await fetch(`${BASE}/watchlist/${encodeURIComponent(prog)}/history`);
+      const r = await fetch(`${BASE}/watchlist/${encodeURIComponent(prog)}/history`, { cache: 'no-store' });
       const d = await r.json();
       setHistory(d.history ?? []);
     } catch { /* silently fail */ }
