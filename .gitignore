@@ -58,6 +58,7 @@ desktop.ini
 # Logs & temp
 *.log
 *.txt
+!requirements.txt
 out.txt
 result.txt
 trace.txt
