@@ -145,20 +145,20 @@ ${result.vulnerabilities.map(v => `- [${v.severity}] ${v.type} (Line ${v.line_nu
                     <a 
                       href={
                         result.audit_chain === 'solana'
-                          ? (result.solana_explorer_url || \`https://explorer.solana.com/tx/\${result.audit_tx_hash}?cluster=devnet\`)
+                          ? (result.solana_explorer_url || `https://explorer.solana.com/tx/${result.audit_tx_hash}?cluster=devnet`)
                           : result.audit_chain === 'stellar'
-                          ? (result.stellar_explorer_url || \`https://stellar.expert/explorer/testnet/tx/\${result.audit_tx_hash}\`)
-                          : \`https://sepolia.etherscan.io/tx/\${result.audit_tx_hash}\`
+                          ? (result.stellar_explorer_url || `https://stellar.expert/explorer/testnet/tx/${result.audit_tx_hash}`)
+                          : `https://sepolia.etherscan.io/tx/${result.audit_tx_hash}`
                       } 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className={\`inline-flex items-center gap-2 px-6 py-3 border-2 text-xs tracking-[0.2em] font-bold uppercase w-max transition-all \${
+                      className={`inline-flex items-center gap-2 px-6 py-3 border-2 text-xs tracking-[0.2em] font-bold uppercase w-max transition-all ${
                         result.audit_chain === 'solana'
                           ? 'border-[#9945FF] bg-[#9945FF] text-white hover:bg-transparent hover:text-[#9945FF]'
                           : result.audit_chain === 'stellar'
                           ? 'border-[#08B5E5] bg-[#08B5E5] text-white hover:bg-transparent hover:text-[#08B5E5]'
                           : 'border-[#1C1C1C] bg-[#1C1C1C] text-[#FAFAFA] hover:bg-transparent hover:text-[#1C1C1C]'
-                      }\`}
+                      }`}
                     >
                       <ShieldCheck className="w-4 h-4" />
                       {result.audit_chain === 'solana' ? 'solana verified' : result.audit_chain === 'stellar' ? 'stellar verified' : 'blockchain verified'}
@@ -224,11 +224,11 @@ ${result.vulnerabilities.map(v => `- [${v.severity}] ${v.type} (Line ${v.line_nu
                     <div className="flex flex-col md:flex-row md:items-start justify-between mb-8">
                       <div className="flex-1">
                         <div className="flex items-center gap-6 mb-6">
-                          <span className={\`px-4 py-2 text-xs uppercase tracking-[0.2em] font-bold border-2 \${
+                          <span className={`px-4 py-2 text-xs uppercase tracking-[0.2em] font-bold border-2 ${
                             vuln.severity === 'High' ? 'border-[#FF4522] text-[#FF4522]' : 
                             vuln.severity === 'Medium' ? 'border-yellow-600 text-yellow-600' : 
                             'border-blue-600 text-blue-600'
-                          } group-hover:border-[#FAFAFA] group-hover:text-[#FAFAFA]\`}>
+                          } group-hover:border-[#FAFAFA] group-hover:text-[#FAFAFA]`}>
                             {vuln.severity} Risk
                           </span>
                           <h3 className="text-3xl md:text-5xl font-medium tracking-tighter lowercase">{vuln.type}</h3>
