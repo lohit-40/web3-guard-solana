@@ -126,6 +126,13 @@ async def scout_monitor_job():
 
 @app.on_event("startup")
 async def startup_event():
+    try:
+        from database import init_db
+        init_db()
+        print("[Database] Initialized successfully")
+    except Exception as e:
+        print(f"[Database] Failed to initialize: {e}")
+        
     scheduler.add_job(scout_monitor_job, 'interval', minutes=1)
     scheduler.start()
     print("[APScheduler] ScoutAgent running every 60s")

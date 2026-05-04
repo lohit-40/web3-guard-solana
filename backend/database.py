@@ -404,4 +404,4 @@ def get_threat_feed(limit: int = 20) -> list:
     ]
 
 
-init_db()
+# Database initialized during FastAPI startup instead.
