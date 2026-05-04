@@ -1,0 +1,21 @@
+fastapi
+uvicorn[standard]
+requests
+python-dotenv
+pydantic
+google-genai
+web3
+slowapi
+solana
+solders
+
+# Autonomous agent dependencies
+apscheduler
+aiohttp
+websockets
+
+# Optional: Telegram bot (python-telegram-bot v20+ for webhook mode)
+python-telegram-bot
+
+# Database
+psycopg2-binary
