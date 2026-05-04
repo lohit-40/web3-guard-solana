@@ -380,13 +380,13 @@ def scan_contract(request: Request, payload: ScanRequest):
             # Frontend will build, sign, and submit the tx via Phantom Wallet.
             # Then it will call /update_audit_tx to update the DB.
             audit_chain = "solana"
-            tx_hash_hex = "pending_user_signature"
-            solana_explorer_url = ""
+            tx_hash_hex = None
+            solana_explorer_url = None
         elif payload.chain_id == "stellar":
             # ─── Stellar Testnet — Frontend Signed ───
             audit_chain = "stellar"
-            tx_hash_hex = "pending_user_signature" 
-            stellar_explorer_url = ""
+            tx_hash_hex = None 
+            stellar_explorer_url = None
             soroban_contract_id = os.getenv("SOROBAN_CONTRACT_ID", "")
         else:
             # Fallback for other Rust chains (NEAR, Polkadot) if needed
