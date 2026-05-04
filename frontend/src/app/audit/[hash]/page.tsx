@@ -5,8 +5,9 @@ import { useParams } from "next/navigation";
 import { ShieldCheck, ShieldAlert, FileCode2, ArrowLeft, Sparkles, Link as LinkIcon, Download } from "lucide-react";
 import Link from "next/link";
 import { Toaster, toast } from "react-hot-toast";
+import { motion, AnimatePresence } from "framer-motion";
 
-const API_URL = "/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 interface Vulnerability {
   type: string;
@@ -22,11 +23,11 @@ interface ScanResponse {
   vulnerabilities: Vulnerability[];
   audit_tx_hash?: string;
   hash_key?: string;
-  audit_chain?: string;          // "ethereum" | "solana" | "stellar"
+  audit_chain?: string;
   solana_explorer_url?: string;
   stellar_explorer_url?: string;
-  soroban_contract_id?: string;  // Stellar: Soroban contract ID
-  soroban_proof_id?: number;     // Stellar: sequential proof ID
+  soroban_contract_id?: string;
+  soroban_proof_id?: number;
 }
 
 export default function SharedAuditPage() {
@@ -55,21 +56,30 @@ export default function SharedAuditPage() {
     if (hash) fetchReport();
   }, [hash]);
 
-  const getSeverityColor = (severity: string) => {
-    switch(severity.toLowerCase()) {
-      case 'high': return 'text-red-400 bg-red-400/10 border-red-500/30';
-      case 'medium': return 'text-yellow-400 bg-yellow-400/10 border-yellow-500/30';
-      case 'low': return 'text-blue-400 bg-blue-400/10 border-blue-500/30';
-      default: return 'text-neutral-400 bg-neutral-800 border-neutral-700';
-    }
+  const handleDownloadPDF = () => {
+    if (!result) return;
+    const content = `WEB3 GUARD - SECURITY AUDIT REPORT
+Target: ${result.address}
+Status: ${result.vulnerabilities.length === 0 ? "SECURE" : "VULNERABLE"}
+Date: ${new Date().toUTCString()}
+
+${result.vulnerabilities.length} Alerts Found:
+${result.vulnerabilities.map(v => `- [${v.severity}] ${v.type} (Line ${v.line_number || "N/A"})\n  ${v.description}`).join('\n\n')}
+`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit-report-${result.address.slice(0, 8)}.txt`;
+    a.click();
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6 text-white font-mono">
+      <div className="min-h-screen bg-[#FAFAFA] text-[#1C1C1C] flex items-center justify-center p-6 font-mono">
         <div className="flex flex-col items-center gap-6">
-          <div className="w-16 h-16 rounded-full border-t-2 border-r-2 border-indigo-500 animate-spin" />
-          <p className="text-neutral-500 tracking-widest text-sm uppercase">Loading Shared Audit...</p>
+          <div className="w-16 h-16 border-4 border-[#1C1C1C] border-t-transparent rounded-full animate-spin" />
+          <p className="text-[#1C1C1C] tracking-[0.2em] text-sm uppercase font-bold">Initializing Report...</p>
         </div>
       </div>
     );
@@ -77,13 +87,13 @@ export default function SharedAuditPage() {
 
   if (error || !result) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6 text-white font-mono">
-        <div className="max-w-md w-full bg-[#0a0a0a] border border-red-500/20 rounded-3xl p-8 text-center backdrop-blur-xl">
-          <ShieldAlert className="w-16 h-16 text-red-500 mx-auto mb-6 opacity-80" />
-          <h2 className="text-xl font-semibold mb-2">Audit Not Found</h2>
-          <p className="text-neutral-400 text-sm mb-8">{error}</p>
-          <Link href="/" className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-white text-black text-sm font-semibold tracking-wide hover:bg-neutral-200 transition-colors">
-            <ArrowLeft className="w-4 h-4" /> Go Home
+      <div className="min-h-screen bg-[#FAFAFA] text-[#1C1C1C] flex items-center justify-center p-6 font-sans">
+        <div className="max-w-md w-full bg-white border-4 border-[#1C1C1C] shadow-[8px_8px_0px_0px_rgba(28,28,28,1)] p-8 text-center">
+          <ShieldAlert className="w-16 h-16 text-[#FF4522] mx-auto mb-6 opacity-80" />
+          <h2 className="text-3xl font-bold mb-4 tracking-tighter lowercase">Audit Not Found</h2>
+          <p className="text-[#1C1C1C]/60 text-sm mb-8 font-mono">{error}</p>
+          <Link href="/" className="inline-flex items-center gap-2 px-6 py-3 bg-[#1C1C1C] text-white text-sm font-bold tracking-[0.2em] uppercase hover:bg-[#FF4522] transition-colors">
+            <ArrowLeft className="w-4 h-4" /> run new scan
           </Link>
         </div>
       </div>
@@ -91,162 +101,169 @@ export default function SharedAuditPage() {
   }
 
   const isSecure = result.vulnerabilities.length === 0;
+  const hasValidTxHash = result.audit_tx_hash && result.audit_tx_hash !== 'pending_user_signature';
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-indigo-500/30 font-mono relative overflow-hidden flex flex-col items-center">
-      <Toaster />
-      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-900/20 blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-900/10 blur-[120px] rounded-full pointer-events-none" />
+    <div className="min-h-screen bg-[#FAFAFA] text-[#1C1C1C] selection:bg-[#FF4522]/30 font-sans relative overflow-hidden flex flex-col items-center">
+      <Toaster 
+        toastOptions={{
+          style: {
+            borderRadius: '0',
+            background: '#1C1C1C',
+            color: '#FAFAFA',
+            border: '2px solid #1C1C1C',
+            fontFamily: 'monospace',
+            fontWeight: 'bold',
+            letterSpacing: '0.1em'
+          },
+        }} 
+      />
 
-      <main className="w-full max-w-5xl mx-auto px-6 py-20 z-10 flex-grow relative">
-        <Link href="/" className="inline-flex items-center gap-2 text-neutral-500 hover:text-white transition-colors mb-12 uppercase tracking-widest text-xs font-semibold">
-          <ArrowLeft className="w-4 h-4" /> Run New Scan
-        </Link>
-
-        {/* Header */}
-        <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6 pb-8 border-b border-white/10">
-          <div>
-            <h1 className="text-4xl md:text-5xl font-light tracking-tighter mb-4">
-              Security <span className="text-transparent bg-clip-text bg-gradient-to-r from-neutral-400 to-neutral-600">Report.</span>
-            </h1>
-            <div className="flex items-center gap-3">
-              <FileCode2 className="w-5 h-5 text-neutral-500" />
-              <span className="text-neutral-400 text-sm tracking-widest uppercase">{result.address}</span>
-            </div>
-          </div>
-          
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(window.location.href);
-              toast.success("Link copied!");
-            }}
-            className="inline-flex shrink-0 items-center justify-center gap-2 px-6 py-2.5 rounded-full border border-purple-500/50 bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-all text-sm tracking-widest uppercase font-semibold"
-          >
-            <LinkIcon className="w-4 h-4" /> Copy Link
-          </button>
+      {/* Decorative brutalist elements */}
+      <div className="absolute top-0 right-0 w-64 h-64 border-l-4 border-b-4 border-[#1C1C1C] opacity-5 pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-96 h-96 border-t-4 border-r-4 border-[#1C1C1C] opacity-5 pointer-events-none" />
+      
+      <main className="w-full max-w-[1400px] mx-auto px-4 md:px-8 xl:px-16 py-12 md:py-24 relative z-10 flex flex-col items-center">
+        
+        {/* Navigation */}
+        <div className="w-full max-w-4xl mb-16 flex justify-start">
+          <Link href="/" className="inline-flex items-center gap-2 px-6 py-3 border-2 border-[#1C1C1C] text-[#1C1C1C] hover:bg-[#1C1C1C] hover:text-[#FAFAFA] transition-all text-xs tracking-[0.2em] font-bold uppercase">
+            <ArrowLeft className="w-4 h-4" /> run new scan
+          </Link>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-          <div className={`p-6 rounded-3xl border ${isSecure ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'} backdrop-blur-md flex flex-col items-center justify-center text-center shadow-[0_0_30px_rgba(0,0,0,0.5)]`}>
-            {isSecure ? <ShieldCheck className="w-8 h-8 mb-3" /> : <ShieldAlert className="w-8 h-8 mb-3" />}
-            <span className="text-2xl font-light">{isSecure ? 'Secure' : 'Critical'}</span>
-            <span className="text-[10px] uppercase tracking-widest mt-1 opacity-70">Status</span>
-          </div>
-          <div className="p-6 rounded-3xl border border-white/5 bg-[#0a0a0a]/50 backdrop-blur-md flex flex-col items-center justify-center text-center">
-            <span className="text-4xl font-light text-white">{result.vulnerabilities.length}</span>
-            <span className="text-[10px] uppercase tracking-widest mt-1 text-neutral-500">Alerts Found</span>
-          </div>
-          {/* On-Chain Proof Card */}
-          <div className="col-span-2 p-6 rounded-3xl border border-white/5 bg-[#0a0a0a]/50 backdrop-blur-md flex flex-col justify-center items-start">
-            <div className="flex items-center gap-3 mb-2 flex-wrap">
-              <span className="text-[10px] uppercase tracking-widest text-neutral-500">Proof of Audit</span>
-              {result.audit_chain && (
-                <span className={`text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full border ${
-                  result.audit_chain === 'solana'
-                    ? 'border-[#9945FF]/50 bg-[#9945FF]/10 text-[#9945FF]'
-                    : result.audit_chain === 'stellar'
-                    ? 'border-[#08B5E5]/50 bg-[#08B5E5]/10 text-[#08B5E5]'
-                    : 'border-green-500/50 bg-green-500/10 text-green-400'
-                }`}>
-                  {result.audit_chain === 'stellar' ? '🔵 Stellar Testnet'
-                   : result.audit_chain === 'solana' ? '🟢 Solana Devnet'
-                   : '🔷 Ethereum Sepolia'}
-                </span>
-              )}
-            </div>
+        <div className="w-full max-w-4xl relative">
+          {/* Brutalist Report Output */}
+          <div className="border-t-4 border-[#1C1C1C] pt-16 relative">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 gap-6">
+              <div>
+                <h2 className="text-5xl md:text-7xl font-bold tracking-tighter text-[#1C1C1C] lowercase mb-4">audit <br/> report *</h2>
+                <p className="text-[#1C1C1C]/60 font-mono text-sm tracking-widest bg-[#1C1C1C]/5 inline-block px-4 py-2 break-all">{result.address}</p>
+                
+                <div className="flex flex-wrap items-center gap-4 mt-6">
+                  {hasValidTxHash && (
+                    <a 
+                      href={
+                        result.audit_chain === 'solana'
+                          ? (result.solana_explorer_url || \`https://explorer.solana.com/tx/\${result.audit_tx_hash}?cluster=devnet\`)
+                          : result.audit_chain === 'stellar'
+                          ? (result.stellar_explorer_url || \`https://stellar.expert/explorer/testnet/tx/\${result.audit_tx_hash}\`)
+                          : \`https://sepolia.etherscan.io/tx/\${result.audit_tx_hash}\`
+                      } 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className={\`inline-flex items-center gap-2 px-6 py-3 border-2 text-xs tracking-[0.2em] font-bold uppercase w-max transition-all \${
+                        result.audit_chain === 'solana'
+                          ? 'border-[#9945FF] bg-[#9945FF] text-white hover:bg-transparent hover:text-[#9945FF]'
+                          : result.audit_chain === 'stellar'
+                          ? 'border-[#08B5E5] bg-[#08B5E5] text-white hover:bg-transparent hover:text-[#08B5E5]'
+                          : 'border-[#1C1C1C] bg-[#1C1C1C] text-[#FAFAFA] hover:bg-transparent hover:text-[#1C1C1C]'
+                      }\`}
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      {result.audit_chain === 'solana' ? 'solana verified' : result.audit_chain === 'stellar' ? 'stellar verified' : 'blockchain verified'}
+                    </a>
+                  )}
+                  
+                  <button
+                    onClick={handleDownloadPDF}
+                    className="inline-flex items-center gap-2 px-6 py-3 border-2 border-[#1C1C1C] text-[#1C1C1C] hover:bg-[#1C1C1C] hover:text-[#FAFAFA] transition-all text-xs tracking-[0.2em] font-bold uppercase"
+                  >
+                    <Download className="w-4 h-4" />
+                    export txt
+                  </button>
 
-            {/* Tx Hash */}
-            <span className="text-xs font-light text-neutral-300 truncate font-sans tracking-wide mb-1 block w-full">
-              {result.audit_tx_hash || "Not anchored to blockchain"}
-            </span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.href);
+                      toast.success("Shareable link copied to clipboard!");
+                    }}
+                    className="inline-flex items-center gap-2 px-6 py-3 border-2 border-[#FF4522] text-[#FF4522] hover:bg-[#FF4522] hover:text-[#FAFAFA] transition-all text-xs tracking-[0.2em] font-bold uppercase"
+                  >
+                    <LinkIcon className="w-4 h-4" />
+                    copy link
+                  </button>
 
-            {/* Soroban contract details — only for Stellar */}
-            {result.audit_chain === 'stellar' && result.soroban_contract_id && (
-              <div className="mt-2 mb-3 w-full">
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9px] uppercase tracking-widest text-[#08B5E5]/70">Soroban Contract</span>
-                    <span className="text-[10px] text-[#08B5E5] font-mono truncate">{result.soroban_contract_id}</span>
-                  </div>
-                  {result.soroban_proof_id && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] uppercase tracking-widest text-[#08B5E5]/70">Proof ID</span>
-                      <span className="text-[10px] text-[#08B5E5] font-mono">#{result.soroban_proof_id}</span>
+                  {!hasValidTxHash && (
+                    <div className="inline-flex items-center gap-2 px-6 py-3 border-2 border-[#10B981]/30 text-[#10B981]/80 cursor-default transition-all text-xs tracking-[0.2em] font-bold uppercase bg-[#10B981]/5">
+                      <ShieldCheck className="w-4 h-4 text-[#10B981]" />
+                      <span className="text-[#10B981]">stored on chain (native)</span>
                     </div>
                   )}
                 </div>
               </div>
-            )}
-
-            {/* Verify on Chain button */}
-            {result.audit_tx_hash && (() => {
-              const chain = result.audit_chain;
-              const explorerUrl =
-                chain === 'solana'
-                  ? (result.solana_explorer_url || `https://explorer.solana.com/tx/${result.audit_tx_hash}?cluster=devnet`)
-                  : chain === 'stellar'
-                  ? (result.stellar_explorer_url || `https://stellar.expert/explorer/testnet/tx/${result.audit_tx_hash}`)
-                  : `https://sepolia.etherscan.io/tx/${result.audit_tx_hash}`;
-              const label =
-                chain === 'solana' ? 'Verify on Solana'
-                : chain === 'stellar' ? 'Verify on Stellar Expert'
-                : 'Verify on Etherscan';
-              const colorClass =
-                chain === 'solana'
-                  ? 'border-[#9945FF]/50 bg-[#9945FF]/10 text-[#9945FF] hover:bg-[#9945FF]/20'
-                  : chain === 'stellar'
-                  ? 'border-[#08B5E5]/50 bg-[#08B5E5]/10 text-[#08B5E5] hover:bg-[#08B5E5]/20'
-                  : 'border-green-500/50 bg-green-500/10 text-green-400 hover:bg-green-500/20';
-              return (
-                <a
-                  href={explorerUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border transition-all text-xs tracking-widest uppercase font-bold ${colorClass}`}
-                >
-                  <LinkIcon className="w-3 h-3" /> {label}
-                </a>
-              );
-            })()}
-          </div>
-        </div>
-
-        {/* Vulnerabilities List */}
-        <div className="space-y-4 mb-24">
-          {result.vulnerabilities.map((v, i) => (
-            <div key={i} className={`p-6 md:p-8 rounded-3xl border border-white/5 bg-[#0a0a0a]/80 backdrop-blur-md transition-all`}>
-              <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-                <div className="flex items-center gap-3">
-                  <span className={`px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold border ${getSeverityColor(v.severity)}`}>
-                    {v.severity}
-                  </span>
-                  <h3 className="text-lg md:text-xl font-medium text-white tracking-tight">{v.type}</h3>
-                </div>
-                {v.line_number && (
-                  <span className="text-xs text-neutral-500 uppercase tracking-wider bg-white/5 px-3 py-1 rounded-full border border-white/10">
-                    Line {v.line_number}
-                  </span>
-                )}
-              </div>
-              <p className="text-neutral-400 text-sm md:text-base leading-relaxed mb-6">{v.description}</p>
               
-              {v.remediation && (
-                <div className="mt-4 p-5 rounded-2xl bg-indigo-500/5 border border-indigo-500/10">
-                  <span className="text-[10px] text-indigo-400 uppercase tracking-widest font-semibold block mb-3">Remediation Required</span>
-                  <p className="text-neutral-300 text-sm leading-relaxed">{v.remediation}</p>
+              {result.vulnerabilities.length === 0 ? (
+                <div className="flex items-center gap-3 px-8 py-4 border-2 border-[#10B981] bg-[#10B981]/10 text-[#10B981]">
+                  <ShieldCheck className="w-6 h-6" />
+                  <span className="text-sm tracking-[0.2em] font-bold uppercase">secure</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 px-8 py-4 border-2 border-[#FF4522] bg-[#FF4522]/10 text-[#FF4522]">
+                  <ShieldAlert className="w-6 h-6" />
+                  <span className="text-sm tracking-[0.2em] font-bold uppercase">vulnerable</span>
                 </div>
               )}
             </div>
-          ))}
-          
-          {isSecure && (
-            <div className="p-12 rounded-3xl border border-white/5 bg-[#0a0a0a]/80 backdrop-blur-md text-center flex flex-col items-center">
-              <Sparkles className="w-12 h-12 text-yellow-500/50 mb-4" />
-              <h3 className="text-2xl font-light text-white mb-2">Zero Vulnerabilities Detected</h3>
-              <p className="text-neutral-400">This smart contract passed all heuristic and AI security checks seamlessly.</p>
-            </div>
-          )}
+
+            {result.vulnerabilities.length === 0 ? (
+              <div className="w-full aspect-[21/9] flex items-center justify-center border-4 border-[#1C1C1C] bg-transparent relative">
+                 <span className="absolute -top-6 -left-4 text-7xl text-[#10B981] font-serif">*</span>
+                <p className="text-[#1C1C1C] font-medium text-2xl tracking-tighter">contract isolated. no severe exploits discovered.</p>
+              </div>
+            ) : (
+              <div className="grid gap-6 border-l-4 border-[#1C1C1C] pl-4 md:pl-10">
+                {result.vulnerabilities.map((vuln, idx) => (
+                  <motion.div 
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 * idx }}
+                    key={idx} 
+                    className="group flex flex-col p-8 md:p-12 border-2 border-[#1C1C1C] hover:bg-[#1C1C1C] hover:text-[#FAFAFA] transition-all duration-300"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-start justify-between mb-8">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-6 mb-6">
+                          <span className={\`px-4 py-2 text-xs uppercase tracking-[0.2em] font-bold border-2 \${
+                            vuln.severity === 'High' ? 'border-[#FF4522] text-[#FF4522]' : 
+                            vuln.severity === 'Medium' ? 'border-yellow-600 text-yellow-600' : 
+                            'border-blue-600 text-blue-600'
+                          } group-hover:border-[#FAFAFA] group-hover:text-[#FAFAFA]\`}>
+                            {vuln.severity} Risk
+                          </span>
+                          <h3 className="text-3xl md:text-5xl font-medium tracking-tighter lowercase">{vuln.type}</h3>
+                        </div>
+                        <p className="font-medium leading-relaxed max-w-3xl text-lg opacity-80 group-hover:opacity-100">
+                          {vuln.description}
+                        </p>
+                      </div>
+                      {vuln.line_number && (
+                        <div className="mt-8 md:mt-0 flex flex-col md:items-end pb-4 border-b-2 border-[#1C1C1C]/20 md:border-b-0 md:pl-8 md:border-l-2 group-hover:border-[#FAFAFA]/30">
+                          <span className="text-xs uppercase tracking-[0.2em] mb-2 font-bold opacity-50">Line Num</span>
+                          <span className="text-6xl font-bold font-mono">.{vuln.line_number}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* AI Remediation Engine Display */}
+                    {vuln.remediation && (
+                      <div className="mt-8 p-6 lg:p-10 border-2 border-[#1C1C1C] bg-[#FAFAFA] text-[#1C1C1C] relative group-hover:border-[#FAFAFA] group-hover:translate-x-4 transition-transform duration-300">
+                        <div className="absolute top-4 right-4 text-[#FF4522] text-4xl font-serif">*</div>
+                        <div className="flex items-center gap-3 mb-6 text-[#FF4522]">
+                          <Sparkles className="w-5 h-5" />
+                          <span className="text-sm uppercase tracking-[0.2em] font-bold">Untold AI Remediation</span>
+                        </div>
+                        <div className="prose prose-p:text-[#1C1C1C] prose-headings:text-[#1C1C1C] max-w-none font-medium text-base prose-pre:bg-[#1C1C1C] prose-pre:text-[#FAFAFA] prose-pre:border-2 prose-pre:border-[#1C1C1C] prose-pre:rounded-none leading-relaxed whitespace-pre-wrap">
+                          {vuln.remediation}
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            )}
+            
+          </div>
         </div>
       </main>
     </div>
