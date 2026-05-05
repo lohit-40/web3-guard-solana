@@ -44,7 +44,7 @@ Do NOT wrap your response in a generic JSON block unless necessary, return pure 
     client = get_gemini_client()
     try:
         response = client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-2.5-flash',
             contents=code_context,
             config=genai.types.GenerateContentConfig(
                 system_instruction=system_instruction,

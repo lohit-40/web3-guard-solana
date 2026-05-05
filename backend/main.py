@@ -258,9 +258,9 @@ def scan_for_vulnerabilities(source_code: str, ecosystem: str = "Solidity") -> l
                     contents=prompt
                 )
             except Exception as e:
-                if "503" in str(e) or "UNAVAILABLE" in str(e):
+                if "503" in str(e) or "UNAVAILABLE" in str(e) or "NOT_FOUND" in str(e):
                     response = client.models.generate_content(
-                        model='gemini-2.0-flash',
+                        model='gemini-2.5-flash',
                         contents=prompt
                     )
                 else:
@@ -674,9 +674,9 @@ def auto_remediate_contract(request: Request, payload: SecureContractRequest):
                     contents=prompt
                 )
             except Exception as e:
-                if "503" in str(e) or "UNAVAILABLE" in str(e):
+                if "503" in str(e) or "UNAVAILABLE" in str(e) or "NOT_FOUND" in str(e):
                     response = client.models.generate_content(
-                        model='gemini-2.0-flash',
+                        model='gemini-2.5-flash',
                         contents=prompt
                     )
                 else:
@@ -761,9 +761,9 @@ def multilingual_chat(request: Request, payload: ChatRequest):
                     contents=messages
                 )
             except Exception as e:
-                if "503" in str(e) or "UNAVAILABLE" in str(e):
+                if "503" in str(e) or "UNAVAILABLE" in str(e) or "NOT_FOUND" in str(e):
                     response = client.models.generate_content(
-                        model='gemini-2.0-flash',
+                        model='gemini-2.5-flash',
                         contents=messages
                     )
                 else:
