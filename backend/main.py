@@ -5,6 +5,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 from typing import Optional, List
+from contextlib import asynccontextmanager
 import requests
 import os
 import re
@@ -32,9 +33,6 @@ import sqlite3
 from slowapi.errors import RateLimitExceeded
 
 limiter = Limiter(key_func=get_remote_address)
-app = FastAPI()
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from agents import ScoutAgent, AnalystAgent, ReporterAgent, DefenderAgent
 
@@ -43,6 +41,88 @@ scout_agent   = ScoutAgent()
 analyst_agent = AnalystAgent()
 reporter      = ReporterAgent()
 defender      = DefenderAgent()
+
+# ── WebSocket event queue (filled by live WS, consumed below) ──
+_ws_event_queue: asyncio.Queue = asyncio.Queue()
+
+async def _ws_event_consumer(queue: asyncio.Queue) -> None:
+    """Consumes real-time logsSubscribe events and records them to the DB."""
+    while True:
+        try:
+            event      = await asyncio.wait_for(queue.get(), timeout=5.0)
+            program_id = event.get("program_id", "")
+            log_data   = event.get("log", {})
+            err        = log_data.get("err")
+            logs       = log_data.get("logs", [])
+            sig        = log_data.get("signature", "")[:12]
+            add_monitoring_event(
+                program_id, "WS_LIVE_EVENT",
+                f"[WebSocket] tx={sig}... err={err} logs={len(logs)}",
+                agent_type="Scout"
+            )
+        except asyncio.TimeoutError:
+            continue
+        except asyncio.CancelledError:
+            return
+        except Exception as e:
+            print(f"[WSConsumer] {e}")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ── Startup ──────────────────────────────────────────────
+    try:
+        from database import init_db
+        import fix_db
+        init_db()
+        fix_db.fix_database()
+        print("[Database] Initialized and seeded")
+    except Exception as e:
+        print(f"[Database] Init failed: {e}")
+
+    scheduler.add_job(scout_monitor_job, 'interval', minutes=1)
+    scheduler.start()
+    print("[APScheduler] Polling every 60s")
+
+    # Load watchlist and start live WebSocket subscriptions
+    ws_task       = None
+    consumer_task = None
+    try:
+        import sqlite3 as _sq
+        conn = _sq.connect("cache.db")
+        programs = [r[0] for r in conn.execute("SELECT contract_address FROM watchlist").fetchall()]
+        conn.close()
+    except Exception:
+        programs = []
+
+    consumer_task = asyncio.create_task(_ws_event_consumer(_ws_event_queue))
+    if programs:
+        ws_task = asyncio.create_task(
+            scout_agent.start_all_subscriptions(programs, _ws_event_queue)
+        )
+        print(f"[WebSocket] Live subscriptions started for {len(programs)} programs")
+    else:
+        # Still set the queue so add_subscription works later
+        scout_agent._event_queue = _ws_event_queue
+        print("[WebSocket] No watchlist programs yet — queue ready for dynamic subscriptions")
+
+    yield
+
+    # ── Shutdown ─────────────────────────────────────────────
+    await scout_agent.cancel_all()
+    if ws_task:
+        ws_task.cancel()
+        try: await ws_task
+        except asyncio.CancelledError: pass
+    if consumer_task:
+        consumer_task.cancel()
+        try: await consumer_task
+        except asyncio.CancelledError: pass
+    scheduler.shutdown()
+    print("[Shutdown] Clean shutdown complete")
+
+app = FastAPI(lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 async def scout_monitor_job():
     """Runs every minute: polls all watchlist programs, triggers Analyst on anomaly."""
@@ -124,28 +204,44 @@ async def scout_monitor_job():
         print(f"[ScoutJob] Error: {e}")
 
 
-@app.on_event("startup")
-async def startup_event():
-    try:
-        from database import init_db
-        import fix_db
-        init_db()
-        fix_db.fix_database()
-        print("[Database] Initialized and seeded successfully")
-    except Exception as e:
-        print(f"[Database] Failed to initialize/seed: {e}")
-        
-    scheduler.add_job(scout_monitor_job, 'interval', minutes=1)
-    scheduler.start()
-    print("[APScheduler] ScoutAgent running every 60s")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    scheduler.shutdown()
+# Lifecycle handled by lifespan() context manager above
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "service": "web3guard-backend"}
+    ws_count = len(scout_agent._subscriptions)
+    return {
+        "status":          "ok",
+        "service":         "web3guard-backend",
+        "ws_subscriptions": ws_count,
+        "ws_mode":         "helius_live" if scout_agent._using_helius else "devnet_polling",
+    }
+
+@app.get("/monitoring/status")
+def monitoring_status():
+    """Returns real-time agent status for the frontend dashboard."""
+    baselines = {
+        pid: {
+            "samples":    len(buf),
+            "mean":       round(statistics.mean(buf), 2) if len(buf) >= 2 else 0,
+            "std":        round(statistics.stdev(buf), 2) if len(buf) >= 2 else 0,
+        }
+        for pid, buf in scout_agent._baselines.items()
+    }
+    return {
+        "scout": {
+            "mode":            "helius_websocket" if scout_agent._using_helius else "devnet_polling",
+            "ws_subscriptions": list(scout_agent._subscriptions.keys()),
+            "active_count":    len(scout_agent._subscriptions),
+            "baselines":       baselines,
+        },
+        "scheduler": {
+            "running":      scheduler.running,
+            "poll_interval": "60s",
+        },
+        "queue_size": _ws_event_queue.qsize(),
+    }
+
+import statistics as statistics  # ensure available in endpoint
 
 
 app.include_router(ci_router, prefix="/api/ci")
@@ -485,7 +581,11 @@ def api_add_watchlist(payload: WatchlistCreate):
     ''', (payload.contract_address, payload.added_by, payload.risk_level, payload.owner_wallet, payload.discord_webhook, payload.telegram_chat_id))
     conn.commit()
     conn.close()
-    return {"status": "success", "program": payload.contract_address}
+
+    # Start a live WebSocket subscription for this new program immediately
+    asyncio.create_task(scout_agent.add_subscription(payload.contract_address))
+
+    return {"status": "success", "program": payload.contract_address, "ws_monitoring": "live"}
 
 @app.get("/watchlist")
 def api_get_watchlist():

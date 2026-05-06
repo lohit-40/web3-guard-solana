@@ -43,6 +43,16 @@ interface DashboardStats {
   proofs_anchored: number;
 }
 
+interface MonitorStatus {
+  scout: {
+    mode: string;
+    active_count: number;
+    ws_subscriptions: string[];
+  };
+  scheduler: { running: boolean };
+  queue_size: number;
+}
+
 // ── Agent Badges ───────────────────────────────────────────────────────────
 
 const AGENT_META: Record<string, { emoji: string; label: string; color: string }> = {
@@ -140,6 +150,7 @@ export default function Dashboard() {
   });
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
   const [live, setLive]           = useState(true);
+  const [wsStatus, setWsStatus]   = useState<MonitorStatus | null>(null);
 
   const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -189,16 +200,28 @@ export default function Dashboard() {
     } catch { /* silently fail */ }
   }, [BASE]);
 
+  const fetchMonitorStatus = useCallback(async () => {
+    try {
+      const r = await fetch(`${BASE}/monitoring/status`, { cache: 'no-store' });
+      const d = await r.json();
+      setWsStatus(d);
+    } catch { /* silently fail */ }
+  }, [BASE]);
+
   useEffect(() => {
     fetchEvents();
     fetchWatchlist();
-  }, [fetchEvents, fetchWatchlist]);
+    fetchMonitorStatus();
+  }, [fetchEvents, fetchWatchlist, fetchMonitorStatus]);
 
   useEffect(() => {
     if (!live) return;
-    const interval = setInterval(fetchEvents, 15000);
+    const interval = setInterval(() => {
+      fetchEvents();
+      fetchMonitorStatus();
+    }, 15000);
     return () => clearInterval(interval);
-  }, [live, fetchEvents]);
+  }, [live, fetchEvents, fetchMonitorStatus]);
 
   useEffect(() => {
     if (selectedProgram) fetchHistory(selectedProgram);
@@ -235,15 +258,38 @@ export default function Dashboard() {
               <span className={`w-2 h-2 rounded-full ${live ? "bg-green-500 animate-pulse" : "bg-brutal-text/30"}`} />
               {live ? "Live" : "Paused"}
             </button>
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500" />
-              </span>
-              <span className="font-mono text-xs font-bold uppercase tracking-widest">
-                Scout Agent Active
-              </span>
-            </div>
+
+            {/* Real-time WebSocket Status Badge */}
+            {wsStatus ? (
+              wsStatus.scout.mode === "helius_websocket" && wsStatus.scout.active_count > 0 ? (
+                <div className="flex items-center gap-2 px-3 py-2 border-2 border-green-500 bg-green-500/10">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+                  </span>
+                  <span className="font-mono text-xs font-bold uppercase tracking-widest text-green-600">
+                    WebSocket Live · {wsStatus.scout.active_count} programs
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2 border-2 border-amber-400 bg-amber-400/10">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="font-mono text-xs font-bold uppercase tracking-widest text-amber-600">
+                    Polling · 60s
+                  </span>
+                </div>
+              )
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500" />
+                </span>
+                <span className="font-mono text-xs font-bold uppercase tracking-widest">
+                  Scout Agent Active
+                </span>
+              </div>
+            )}
           </div>
         </header>
 
@@ -377,7 +423,8 @@ export default function Dashboard() {
                 <AnimatePresence initial={false}>
                   {events.map((event) => {
                     const agent = AGENT_META[event.agent_type] ?? AGENT_META.System;
-                    const isAlert = ["ANOMALY_DETECTED", "ANALYST_SCAN"].includes(event.type);
+                    const isAlert = ["ANOMALY_DETECTED", "ANALYST_SCAN", "WS_LIVE_EVENT"].includes(event.type);
+                    const isWsEvent = event.type === "WS_LIVE_EVENT";
                     const riskColor = RISK_COLOR[event.risk_after ?? ""] ?? "#6B7280";
 
                     return (
