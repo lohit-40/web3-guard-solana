@@ -239,6 +239,11 @@ export default function App() {
   const [isMinting, setIsMinting] = useState(false);
   const [mintResult, setMintResult] = useState<{ tx_hash: string; token_id: number | null; etherscan_nft_url: string | null } | null>(null);
 
+  // Wallet required for Solana/Stellar chains
+  const solanaSelected = chainId === 'solana' || (ecosystem === 'Rust' && chainId === '');
+  const stellarSelected = chainId === 'stellar';
+  const walletRequired = (solanaSelected || stellarSelected) && !isConnected;
+
   const handleScan = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (inputMode === 'address' && !address) {
@@ -250,14 +255,13 @@ export default function App() {
       return;
     }
 
-    // L1 + L2: For Stellar, require Freighter to be connected
-    if (chainId === 'stellar' && !isConnected) {
-      toast.error("Please connect your Freighter wallet first to submit a Stellar audit proof.");
+    // Wallet gate — show helpful toast before any loading starts
+    if (stellarSelected && !isConnected) {
+      toast.error("Connect your Freighter wallet first — proof is anchored on Stellar Testnet.", { duration: 4000 });
       return;
     }
-    
-    if (chainId === 'solana' && !isConnected) {
-      toast.error("Please connect your Phantom wallet first to submit a Solana audit proof.");
+    if (solanaSelected && !isConnected) {
+      toast.error("Connect your Phantom wallet first — audit proof is anchored on Solana Devnet.", { duration: 4000 });
       return;
     }
     
@@ -754,25 +758,45 @@ export default function App() {
                       />
                     )}
                     
-                    <div className="w-full max-w-[280px] mt-4">
-                      <button
-                        type="submit"
-                        disabled={loading}
-                        className="brutal-btn w-full"
-                      >
-                        {loading ? (
-                          <div className="flex items-center justify-center gap-3">
-                            <motion.div
-                              animate={{ rotate: 360 }}
-                              transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                              className="w-4 h-4 border-2 border-brutal-bg border-t-transparent rounded-full flex-shrink-0"
-                            />
-                            <span>{scanSteps[scanStep]}</span>
+                    <div className="w-full max-w-[280px] mt-4 flex flex-col gap-3">
+                      {walletRequired ? (
+                        // Wallet not connected — show connect CTA instead of audit button
+                        <div className="flex flex-col gap-2">
+                          <div className="brutal-btn w-full opacity-40 cursor-not-allowed select-none text-center py-4 text-sm font-mono tracking-widest uppercase">
+                            Commence Audit
                           </div>
-                        ) : (
-                          "Commence Audit"
-                        )}
-                      </button>
+                          <div className="flex items-center gap-2 px-4 py-3 border-2 border-[#14F195] bg-[#14F195]/10 animate-pulse">
+                            <span className="w-2 h-2 rounded-full bg-[#14F195] flex-shrink-0" />
+                            <span className="font-mono text-xs font-bold uppercase tracking-widest text-[#14F195]">
+                              {stellarSelected ? "Connect Freighter to Audit" : "Connect Phantom to Audit"}
+                            </span>
+                          </div>
+                          <p className="font-mono text-[10px] text-brutal-text/40 uppercase tracking-wider">
+                            {stellarSelected
+                              ? "Proof anchored on Stellar Testnet via Soroban"
+                              : "Proof anchored on Solana Devnet via Memo tx"}
+                          </p>
+                        </div>
+                      ) : (
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="brutal-btn w-full"
+                        >
+                          {loading ? (
+                            <div className="flex items-center justify-center gap-3">
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                                className="w-4 h-4 border-2 border-brutal-bg border-t-transparent rounded-full flex-shrink-0"
+                              />
+                              <span>{scanSteps[scanStep]}</span>
+                            </div>
+                          ) : (
+                            "Commence Audit"
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </motion.form>
