@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ShieldCheck, Award, Activity, ExternalLink, Search, Cpu, Hash, Clock, User, AlertTriangle } from "lucide-react";
 
-const API_URL = "/api";
+// Direct backend URL — bypasses broken /api Next.js proxy (returns 404 on Vercel)
+const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? "https://web3-guard-solana-173382554287.europe-west1.run.app";
 
 interface AuditRecord {
   id: number | string;
@@ -46,13 +47,12 @@ export default function ExplorerPage() {
     const fetchAll = async () => {
       setLoading(true);
       try {
-        const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
         const [statsRes, auditsRes, badgesRes, liveRes, eventsRes] = await Promise.all([
-          fetch(`${API_URL}/explorer/stats`, { cache: 'no-store' }),
-          fetch(`${API_URL}/explorer/audits`, { cache: 'no-store' }),
-          fetch(`${API_URL}/explorer/badges`, { cache: 'no-store' }),
-          fetch(`${API_URL}/metrics/live`, { cache: 'no-store' }),
-          fetch(`${BASE}/monitor/events`, { cache: 'no-store' })
+          fetch(`${BACKEND}/explorer/stats`, { cache: 'no-store' }),
+          fetch(`${BACKEND}/explorer/audits`, { cache: 'no-store' }),
+          fetch(`${BACKEND}/explorer/badges`, { cache: 'no-store' }),
+          fetch(`${BACKEND}/metrics/live`, { cache: 'no-store' }),
+          fetch(`${BACKEND}/monitor/events`, { cache: 'no-store' })
         ]);
         if (statsRes.ok) {
           const explorerData = await statsRes.json();
