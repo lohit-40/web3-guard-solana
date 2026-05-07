@@ -117,7 +117,7 @@ export default function ExplorerPage() {
 
   const filteredEvents = events.filter(e =>
     e.agent_type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    e.summary?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    e.details?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     e.solana_proof_tx?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -446,10 +446,10 @@ export default function ExplorerPage() {
                         <div className="flex flex-col md:flex-row md:items-center justify-between mb-2 gap-2">
                           <span className="font-bold text-sm uppercase tracking-[0.2em]">{ev.agent_type}</span>
                           <span className="text-xs opacity-50 font-mono flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> {ev.created_at}
+                            <Clock className="w-3 h-3" /> {ev.time}
                           </span>
                         </div>
-                        <p className="font-mono text-sm opacity-80 mb-3">{ev.summary}</p>
+                        <p className="font-mono text-sm opacity-80 mb-3">{ev.details}</p>
                         {ev.solana_proof_tx && (
                           <div className="flex items-center">
                             <a 
