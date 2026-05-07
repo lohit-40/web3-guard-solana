@@ -345,7 +345,7 @@ def scan_for_vulnerabilities(source_code: str, ecosystem: str = "Solidity") -> l
     {source_code}
     """
     
-    MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash']
+    MODELS = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash-latest']
     last_err = "Unknown error"
     for i, key in enumerate(current_keys):
         for model_name in MODELS:
@@ -789,7 +789,7 @@ def auto_remediate_contract(request: Request, payload: SecureContractRequest):
     {source_code}
     """
     
-    MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash']
+    MODELS = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash-latest']
     for i, key in enumerate(current_keys):
         for model_name in MODELS:
             try:
@@ -871,7 +871,7 @@ def multilingual_chat(request: Request, payload: ChatRequest):
         
     messages.append(types.Content(role="user", parts=[types.Part(text=payload.message)]))
     
-    MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash']
+    MODELS = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash-latest']
     for i, key in enumerate(current_keys):
         for model_name in MODELS:
             try:
