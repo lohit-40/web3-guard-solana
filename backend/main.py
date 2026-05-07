@@ -1120,8 +1120,7 @@ def get_live_metrics(request: Request):
             
     # Add off-chain and user local totals dynamically
     try:
-        import sqlite3
-        conn = sqlite3.connect("cache.db")
+        conn = get_connection()
         cur = conn.cursor()
         cur.execute("SELECT SUM(audit_count) FROM users")
         user_scans = cur.fetchone()[0] or 0
@@ -1144,7 +1143,7 @@ class WatchlistRequest(BaseModel):
 @app.post("/watchlist/add")
 @limiter.limit("10/minute")
 def add_to_watchlist(request: Request, payload: WatchlistRequest):
-    conn = sqlite3.connect("cache.db")
+    conn = get_connection()
     c = conn.cursor()
     c.execute("INSERT OR REPLACE INTO watchlist (contract_address, added_by, risk_level) VALUES (?, ?, ?)",
               (payload.contract_address, payload.added_by, payload.risk_level))
@@ -1186,27 +1185,35 @@ def explorer_badges(request: Request):
         except Exception as e:
             print(f"Explorer badges (on-chain) error: {e}")
 
-    # --- DB-backed badge fallback (always shown when on-chain is unavailable) -
+    # --- DB-backed badge fallback — reads from scan_cache via get_connection()
+    #     so it works with both SQLite (local) and Postgres (Cloud Run).
     if not badges_list:
         try:
-            import sqlite3 as _sq
             import time as _time
-            _conn = _sq.connect("cache.db")
+            from database import get_connection as _get_conn
+            _conn = _get_conn()
             _cur = _conn.cursor()
-            _cur.execute(
-                "SELECT contract_address, risk_level FROM watchlist ORDER BY last_scanned DESC LIMIT 10"
-            )
+            _cur.execute("SELECT hash_key, response_data FROM scan_cache LIMIT 10")
             rows = _cur.fetchall()
             _conn.close()
-            sev_map = {"HIGH": "HIGH", "MEDIUM": "MEDIUM", "LOW": "LOW", "SAFE": "SECURE", "CRITICAL": "HIGH"}
-            for idx, (addr, risk) in enumerate(rows):
+            sev_map = {"HIGH": "HIGH", "MEDIUM": "MEDIUM", "LOW": "LOW",
+                       "SAFE": "SECURE", "CRITICAL": "HIGH"}
+            for idx, (hash_key, response_data) in enumerate(rows):
+                data = json.loads(response_data) if isinstance(response_data, str) else response_data
+                vulns = data.get("vulnerabilities", [])
+                sevs = [v.get("severity", "LOW").upper() for v in vulns]
+                risk = ("CRITICAL" if "CRITICAL" in sevs else
+                        "HIGH"     if "HIGH"     in sevs else
+                        "MEDIUM"   if "MEDIUM"   in sevs else
+                        "LOW"      if sevs else "SAFE")
+                addr = data.get("address", hash_key)
                 badges_list.append({
                     "token_id": idx,
                     "owner": addr,
                     "contract_audited": addr,
-                    "vulns_found": max(0, {"SAFE": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 4, "CRITICAL": 7}.get(risk, 1)),
+                    "vulns_found": len(vulns),
                     "severity": sev_map.get(risk, "MEDIUM"),
-                    "timestamp": int(_time.time()) - (idx * 7200)
+                    "timestamp": data.get("timestamp", int(_time.time()) - (idx * 7200))
                 })
         except Exception as e:
             print(f"Explorer badges (DB fallback) error: {e}")
