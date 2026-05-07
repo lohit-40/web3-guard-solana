@@ -346,6 +346,7 @@ def scan_for_vulnerabilities(source_code: str, ecosystem: str = "Solidity") -> l
     """
     
     MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash']
+    last_err = "Unknown error"
     for i, key in enumerate(current_keys):
         for model_name in MODELS:
             try:
@@ -356,12 +357,28 @@ def scan_for_vulnerabilities(source_code: str, ecosystem: str = "Solidity") -> l
                 )
                 text = response.text.strip()
                 
-                if text.startswith("```json"): text = text[7:]
-                if text.startswith("```"): text = text[3:]
-                if text.endswith("```"): text = text[:-3]
-                    
+                # Strip ALL markdown code fence variants robustly
+                import re as _re
+                text = _re.sub(r'^```[a-zA-Z]*\n?', '', text).strip()
+                text = _re.sub(r'```$', '', text).strip()
+                # Also handle inline ```json prefix without newline
+                if text.startswith('```'):
+                    text = text[3:].strip()
+                if text.endswith('```'):
+                    text = text[:-3].strip()
+                
                 import json
-                vulns_data = json.loads(text.strip())
+                try:
+                    vulns_data = json.loads(text)
+                except json.JSONDecodeError:
+                    # Try to extract JSON array from anywhere in the text
+                    match = _re.search(r'\[.*\]', text, _re.DOTALL)
+                    if match:
+                        vulns_data = json.loads(match.group(0))
+                    else:
+                        # Gemini returned non-JSON — treat as parse failure and try next model
+                        last_err = f"JSON parse failed. Raw: {text[:200]}"
+                        continue
                 
                 vulnerabilities = []
                 for v in vulns_data:
@@ -373,8 +390,11 @@ def scan_for_vulnerabilities(source_code: str, ecosystem: str = "Solidity") -> l
                         remediation=v.get("remediation")
                     ))
                 return vulnerabilities
+            except HTTPException:
+                raise  # re-raise FastAPI HTTP exceptions immediately
             except Exception as e:
                 err_str = str(e)
+                last_err = err_str
                 is_quota = "429" in err_str or "quota" in err_str.lower()
                 is_unavailable = "503" in err_str or "UNAVAILABLE" in err_str or "NOT_FOUND" in err_str
                 if is_unavailable:
@@ -384,7 +404,16 @@ def scan_for_vulnerabilities(source_code: str, ecosystem: str = "Solidity") -> l
                 elif is_quota:
                     raise HTTPException(status_code=429, detail="All provided Gemini API keys have exhausted their Free Tier daily quotas!")
                 else:
-                    raise HTTPException(status_code=500, detail=f"The advanced AI Scanner encountered a systemic failure: {err_str}")
+                    last_err = err_str
+                    continue  # try next model instead of crashing
+    # All models/keys exhausted — return a safe fallback vulnerability
+    return [Vulnerability(
+        type="AI Scanner Temporarily Unavailable",
+        severity="Medium",
+        line_number=None,
+        description=f"The AI pipeline could not complete the scan: {last_err[:300]}",
+        remediation="Please retry in a moment. If the issue persists, check your GEMINI_API_KEY quota."
+    )]
 
 import hashlib
 import json
@@ -411,7 +440,7 @@ def _risk_level_from_vulns(vulns_dicts: list) -> str:
     return "LOW"
 
 @app.post("/scan", response_model=ScanResponse)
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")
 def scan_contract(request: Request, payload: ScanRequest):
     if not payload.contract_address and not payload.source_code:
         raise HTTPException(status_code=400, detail="Must provide either a contract address or raw source code.")
