@@ -124,6 +124,15 @@ app = FastAPI(lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# Allow all origins so Vercel frontend can fetch directly from Cloud Run backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 async def scout_monitor_job():
     """Runs every minute: polls all watchlist programs, triggers Analyst on anomaly."""
     try:
