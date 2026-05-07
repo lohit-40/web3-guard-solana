@@ -43,7 +43,7 @@ export default function MonitorPage() {
     risk_level:        "PENDING",
   });
 
-  const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const BASE = "/api";
 
   const fetchWatchlist = useCallback(async () => {
     try {
