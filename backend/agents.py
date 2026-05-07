@@ -298,19 +298,26 @@ Source Code:
         prompt = self.SOLANA_VULN_PROMPT.format(source_code=source_code)
         vulns  = []
 
+        MODELS = ["gemini-2.0-flash", "gemini-1.5-flash"]
         for key in keys:
-            try:
-                client   = genai.Client(api_key=key)
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash", contents=prompt
-                )
-                text = response.text.strip().lstrip("```json").lstrip("```").rstrip("```")
-                vulns = json.loads(text)
-                break
-            except Exception as e:
-                if "429" in str(e) and key != keys[-1]:
-                    continue
-                vulns = []
+            for model_name in MODELS:
+                try:
+                    client   = genai.Client(api_key=key)
+                    response = client.models.generate_content(
+                        model=model_name, contents=prompt
+                    )
+                    text = response.text.strip().lstrip("```json").lstrip("```").rstrip("```")
+                    vulns = json.loads(text)
+                    break  # success
+                except Exception as e:
+                    if "503" in str(e) or "NOT_FOUND" in str(e) or "UNAVAILABLE" in str(e):
+                        continue  # try next model
+                    if "429" in str(e) and key != keys[-1]:
+                        break  # try next key
+                    vulns = []
+            else:
+                continue  # inner loop didn't break — all models failed for this key
+            break  # inner loop broke on success
 
         severities = [v.get("severity", "").upper() for v in vulns]
         if "CRITICAL" in severities:   risk = "CRITICAL"

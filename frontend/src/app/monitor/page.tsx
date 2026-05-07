@@ -504,9 +504,9 @@ function AgentFeed({ base }: { base: string }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-bold text-xs uppercase tracking-widest">{ev.agent_type}</span>
-                  <span className="text-[10px] opacity-40 font-mono">{ev.created_at}</span>
+                  <span className="text-[10px] opacity-40 font-mono">{ev.time}</span>
                 </div>
-                <p className="font-mono text-xs opacity-80 mb-2">{ev.summary}</p>
+                <p className="font-mono text-xs opacity-80 mb-2">{ev.details}</p>
                 {ev.solana_proof_tx && (
                   <a 
                     href={`https://explorer.solana.com/tx/${ev.solana_proof_tx}?cluster=devnet`} 

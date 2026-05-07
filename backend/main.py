@@ -345,51 +345,46 @@ def scan_for_vulnerabilities(source_code: str, ecosystem: str = "Solidity") -> l
     {source_code}
     """
     
+    MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash']
     for i, key in enumerate(current_keys):
-        try:
-            client = genai.Client(api_key=key)
+        for model_name in MODELS:
             try:
+                client = genai.Client(api_key=key)
                 response = client.models.generate_content(
-                    model='gemini-2.5-flash',
+                    model=model_name,
                     contents=prompt
                 )
-            except Exception as e:
-                if "503" in str(e) or "UNAVAILABLE" in str(e) or "NOT_FOUND" in str(e):
-                    response = client.models.generate_content(
-                        model='gemini-2.5-flash',
-                        contents=prompt
-                    )
-                else:
-                    raise e
-            text = response.text.strip()
-            
-            if text.startswith("```json"): text = text[7:]
-            if text.startswith("```"): text = text[3:]
-            if text.endswith("```"): text = text[:-3]
+                text = response.text.strip()
                 
-            import json
-            vulns_data = json.loads(text.strip())
-            
-            vulnerabilities = []
-            for v in vulns_data:
-                vulnerabilities.append(Vulnerability(
-                    type=v.get("type", "Unknown Flaw"),
-                    severity=str(v.get("severity", "Medium")),
-                    line_number=v.get("line_number") if isinstance(v.get("line_number"), int) else None,
-                    description=v.get("description", "No description provided."),
-                    remediation=v.get("remediation")
-                ))
-            return vulnerabilities
-            
-        except Exception as e:
-            err_str = str(e)
-            is_quota = "429" in err_str or "quota" in err_str.lower()
-            if is_quota and i < len(current_keys) - 1:
-                continue
-            elif is_quota:
-                raise HTTPException(status_code=429, detail="All provided Gemini API keys have exhausted their Free Tier daily quotas!")
-            else:
-                raise HTTPException(status_code=500, detail=f"The advanced AI Scanner encountered a systemic failure: {err_str}")
+                if text.startswith("```json"): text = text[7:]
+                if text.startswith("```"): text = text[3:]
+                if text.endswith("```"): text = text[:-3]
+                    
+                import json
+                vulns_data = json.loads(text.strip())
+                
+                vulnerabilities = []
+                for v in vulns_data:
+                    vulnerabilities.append(Vulnerability(
+                        type=v.get("type", "Unknown Flaw"),
+                        severity=str(v.get("severity", "Medium")),
+                        line_number=v.get("line_number") if isinstance(v.get("line_number"), int) else None,
+                        description=v.get("description", "No description provided."),
+                        remediation=v.get("remediation")
+                    ))
+                return vulnerabilities
+            except Exception as e:
+                err_str = str(e)
+                is_quota = "429" in err_str or "quota" in err_str.lower()
+                is_unavailable = "503" in err_str or "UNAVAILABLE" in err_str or "NOT_FOUND" in err_str
+                if is_unavailable:
+                    continue  # try next model
+                if is_quota and i < len(current_keys) - 1:
+                    break  # try next key
+                elif is_quota:
+                    raise HTTPException(status_code=429, detail="All provided Gemini API keys have exhausted their Free Tier daily quotas!")
+                else:
+                    raise HTTPException(status_code=500, detail=f"The advanced AI Scanner encountered a systemic failure: {err_str}")
 
 import hashlib
 import json
@@ -765,43 +760,38 @@ def auto_remediate_contract(request: Request, payload: SecureContractRequest):
     {source_code}
     """
     
+    MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash']
     for i, key in enumerate(current_keys):
-        try:
-            client = genai.Client(api_key=key)
+        for model_name in MODELS:
             try:
+                client = genai.Client(api_key=key)
                 response = client.models.generate_content(
-                    model='gemini-2.5-flash',
+                    model=model_name,
                     contents=prompt
                 )
+                text = response.text.strip()
+                
+                if text.startswith("```solidity"):
+                    text = text[11:]
+                elif text.startswith("```"):
+                    text = text[3:]
+                    
+                if text.endswith("```"):
+                    text = text[:-3]
+                    
+                return SecureContractResponse(secure_code=text.strip())
             except Exception as e:
-                if "503" in str(e) or "UNAVAILABLE" in str(e) or "NOT_FOUND" in str(e):
-                    response = client.models.generate_content(
-                        model='gemini-2.5-flash',
-                        contents=prompt
-                    )
+                err_str = str(e)
+                is_unavailable = "503" in err_str or "UNAVAILABLE" in err_str or "NOT_FOUND" in err_str
+                is_quota = "429" in err_str or "quota" in err_str.lower()
+                if is_unavailable:
+                    continue  # try next model
+                if is_quota and i < len(current_keys) - 1:
+                    break  # try next key
+                elif is_quota:
+                    raise HTTPException(status_code=429, detail="All provided Gemini API keys have exhausted their Free Tier daily quotas!")
                 else:
-                    raise e
-            text = response.text.strip()
-            
-            if text.startswith("```solidity"):
-                text = text[11:]
-            elif text.startswith("```"):
-                text = text[3:]
-                
-            if text.endswith("```"):
-                text = text[:-3]
-                
-            return SecureContractResponse(secure_code=text.strip())
-            
-        except Exception as e:
-            err_str = str(e)
-            is_quota = "429" in err_str or "quota" in err_str.lower()
-            if is_quota and i < len(current_keys) - 1:
-                continue
-            elif is_quota:
-                raise HTTPException(status_code=429, detail="All provided Gemini API keys have exhausted their Free Tier daily quotas!")
-            else:
-                raise HTTPException(status_code=500, detail=str(e))
+                    raise HTTPException(status_code=500, detail=str(e))
 
 class ChatMessage(BaseModel):
     role: str
@@ -852,34 +842,29 @@ def multilingual_chat(request: Request, payload: ChatRequest):
         
     messages.append(types.Content(role="user", parts=[types.Part(text=payload.message)]))
     
+    MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash']
     for i, key in enumerate(current_keys):
-        try:
-            client = genai.Client(api_key=key)
+        for model_name in MODELS:
             try:
+                client = genai.Client(api_key=key)
                 response = client.models.generate_content(
-                    model='gemini-2.5-flash',
+                    model=model_name,
                     contents=messages
                 )
+                return ChatResponse(reply=response.text.strip())
             except Exception as e:
-                if "503" in str(e) or "UNAVAILABLE" in str(e) or "NOT_FOUND" in str(e):
-                    response = client.models.generate_content(
-                        model='gemini-2.5-flash',
-                        contents=messages
-                    )
+                err_str = str(e)
+                is_unavailable = "503" in err_str or "UNAVAILABLE" in err_str or "NOT_FOUND" in err_str
+                is_quota = "429" in err_str or "quota" in err_str.lower()
+                if is_unavailable:
+                    continue  # try next model
+                if is_quota and i < len(current_keys) - 1:
+                    break  # try next key
+                elif is_quota:
+                    raise HTTPException(status_code=429, detail="All provided Gemini API keys have exhausted their Free Tier daily quotas!")
                 else:
-                    raise e
-            return ChatResponse(reply=response.text.strip())
-            
-        except Exception as e:
-            err_str = str(e)
-            is_quota = "429" in err_str or "quota" in err_str.lower()
-            if is_quota and i < len(current_keys) - 1:
-                continue
-            elif is_quota:
-                raise HTTPException(status_code=429, detail="All provided Gemini API keys have exhausted their Free Tier daily quotas!")
-            else:
-                print("Chat Error:", err_str)
-                raise HTTPException(status_code=500, detail=err_str)
+                    print("Chat Error:", err_str)
+                    raise HTTPException(status_code=500, detail=err_str)
 
 # ──────────────────────────────────────────────────────
 #  NFT BADGE MINTING ENDPOINT
