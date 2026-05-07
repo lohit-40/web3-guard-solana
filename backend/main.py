@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+﻿from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -42,7 +42,7 @@ analyst_agent = AnalystAgent()
 reporter      = ReporterAgent()
 defender      = DefenderAgent()
 
-# ── WebSocket event queue (filled by live WS, consumed below) ──
+# â”€â”€ WebSocket event queue (filled by live WS, consumed below) â”€â”€
 _ws_event_queue: asyncio.Queue = asyncio.Queue()
 
 async def _ws_event_consumer(queue: asyncio.Queue) -> None:
@@ -69,7 +69,7 @@ async def _ws_event_consumer(queue: asyncio.Queue) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # ── Startup ──────────────────────────────────────────────
+    # â”€â”€ Startup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try:
         from database import init_db
         import fix_db
@@ -103,11 +103,11 @@ async def lifespan(app: FastAPI):
     else:
         # Still set the queue so add_subscription works later
         scout_agent._event_queue = _ws_event_queue
-        print("[WebSocket] No watchlist programs yet — queue ready for dynamic subscriptions")
+        print("[WebSocket] No watchlist programs yet â€” queue ready for dynamic subscriptions")
 
     yield
 
-    # ── Shutdown ─────────────────────────────────────────────
+    # â”€â”€ Shutdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     await scout_agent.cancel_all()
     if ws_task:
         ws_task.cancel()
@@ -345,7 +345,7 @@ def scan_for_vulnerabilities(source_code: str, ecosystem: str = "Solidity") -> l
     {source_code}
     """
     
-    MODELS = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash-latest']
+    MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-flash-latest']
     last_err = "Unknown error"
     for i, key in enumerate(current_keys):
         for model_name in MODELS:
@@ -376,7 +376,7 @@ def scan_for_vulnerabilities(source_code: str, ecosystem: str = "Solidity") -> l
                     if match:
                         vulns_data = json.loads(match.group(0))
                     else:
-                        # Gemini returned non-JSON — treat as parse failure and try next model
+                        # Gemini returned non-JSON â€” treat as parse failure and try next model
                         last_err = f"JSON parse failed. Raw: {text[:200]}"
                         continue
                 
@@ -406,7 +406,7 @@ def scan_for_vulnerabilities(source_code: str, ecosystem: str = "Solidity") -> l
                 else:
                     last_err = err_str
                     continue  # try next model instead of crashing
-    # All models/keys exhausted — return a safe fallback vulnerability
+    # All models/keys exhausted â€” return a safe fallback vulnerability
     return [Vulnerability(
         type="AI Scanner Temporarily Unavailable",
         severity="Medium",
@@ -426,7 +426,7 @@ w3 = Web3(Web3.HTTPProvider(W3_RPC, request_kwargs={'timeout': 10})) if W3_RPC a
 
 # Removed duplicate ScanResponse class definition
 
-# ── Helper: derive risk level string from vuln list ──────────────────────────
+# â”€â”€ Helper: derive risk level string from vuln list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def _risk_level_from_vulns(vulns_dicts: list) -> str:
     if not vulns_dicts:
         return "LOW"
@@ -498,14 +498,14 @@ def scan_contract(request: Request, payload: ScanRequest):
 
     if payload.ecosystem == "Rust":
         if payload.chain_id == "solana":
-            # ─── Solana Devnet — Frontend Signed ───
+            # â”€â”€â”€ Solana Devnet â€” Frontend Signed â”€â”€â”€
             # Frontend will build, sign, and submit the tx via Phantom Wallet.
             # Then it will call /update_audit_tx to update the DB.
             audit_chain = "solana"
             tx_hash_hex = None
             solana_explorer_url = None
         elif payload.chain_id == "stellar":
-            # ─── Stellar Testnet — Frontend Signed ───
+            # â”€â”€â”€ Stellar Testnet â€” Frontend Signed â”€â”€â”€
             audit_chain = "stellar"
             tx_hash_hex = None 
             stellar_explorer_url = None
@@ -514,7 +514,7 @@ def scan_contract(request: Request, payload: ScanRequest):
             # Fallback for other Rust chains (NEAR, Polkadot) if needed
             pass
     else:
-        # ─── Ethereum Sepolia Proof of Audit ───
+        # â”€â”€â”€ Ethereum Sepolia Proof of Audit â”€â”€â”€
         contract_address = os.getenv("PROOF_OF_AUDIT_CONTRACT")
         audit_chain = "ethereum"
         
@@ -561,7 +561,7 @@ def scan_contract(request: Request, payload: ScanRequest):
         "timestamp": int(time.time())
     }
     
-    # ── Automatically add to Watchlist for dashboard monitoring ──
+    # â”€â”€ Automatically add to Watchlist for dashboard monitoring â”€â”€
     if address:
         from database import add_to_watchlist, add_monitoring_event
         try:
@@ -583,7 +583,7 @@ def get_report(request: Request, hash_key: str):
         raise HTTPException(status_code=404, detail="Report not found")
     return ScanResponse(**cached)
 
-# ── Watchlist API for Agents ──
+# â”€â”€ Watchlist API for Agents â”€â”€
 class WatchlistCreate(BaseModel):
     contract_address: str
     added_by: str = "System"
@@ -642,14 +642,14 @@ async def telegram_webhook(request: Request):
             parts = text.split()
             prog  = parts[1] if len(parts) > 1 else None
             if not prog:
-                await reporter.send_telegram(chat_id, "ℹ️ Usage: `/status <program_id>`")
+                await reporter.send_telegram(chat_id, "â„¹ï¸ Usage: `/status <program_id>`")
             else:
                 hist = get_risk_history(prog, days=1)
                 if hist:
                     latest = hist[0]
                     await reporter.send_telegram(
                         chat_id,
-                        f"📊 *Status:* `{prog[:6]}...`\n"
+                        f"ðŸ“Š *Status:* `{prog[:6]}...`\n"
                         f"Risk Level: `{latest['risk_level']}`\n"
                         f"Vulns: {latest['vuln_count']}\n"
                         f"Last Scan: {latest['recorded_at']}"
@@ -667,7 +667,7 @@ async def telegram_webhook(request: Request):
             conn.close()
 
             if rows:
-                msg = "👁️ *Your Watchlist:*\n\n"
+                msg = "ðŸ‘ï¸ *Your Watchlist:*\n\n"
                 for r in rows:
                     msg += f"- `{r['contract_address'][:8]}...` : [{r['risk_level']}]\n"
                 await reporter.send_telegram(chat_id, msg)
@@ -692,7 +692,7 @@ async def telegram_webhook(request: Request):
             # Fallback/Help
             await reporter.send_telegram(
                 chat_id,
-                "🤖 *Web3 Guard Agent*\n"
+                "ðŸ¤– *Web3 Guard Agent*\n"
                 "Commands:\n"
                 "`/status <program_id>`\n"
                 "`/watchlist`\n"
@@ -789,7 +789,7 @@ def auto_remediate_contract(request: Request, payload: SecureContractRequest):
     {source_code}
     """
     
-    MODELS = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash-latest']
+    MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-flash-latest']
     for i, key in enumerate(current_keys):
         for model_name in MODELS:
             try:
@@ -871,7 +871,7 @@ def multilingual_chat(request: Request, payload: ChatRequest):
         
     messages.append(types.Content(role="user", parts=[types.Part(text=payload.message)]))
     
-    MODELS = ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash-latest']
+    MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-flash-latest']
     for i, key in enumerate(current_keys):
         for model_name in MODELS:
             try:
@@ -895,9 +895,9 @@ def multilingual_chat(request: Request, payload: ChatRequest):
                     print("Chat Error:", err_str)
                     raise HTTPException(status_code=500, detail=err_str)
 
-# ──────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 #  NFT BADGE MINTING ENDPOINT
-# ──────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class MintBadgeRequest(BaseModel):
     recipient: str  # The user's wallet address
@@ -979,9 +979,9 @@ def mint_badge(request: Request, payload: MintBadgeRequest):
         print(f"Badge Mint Error: {e}")
         raise HTTPException(status_code=500, detail=f"Minting failed: {str(e)}")
 
-# ──────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 #  LIVE BLOCK EXPLORER ENDPOINTS
-# ──────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.get("/explorer/stats")
 @limiter.limit("10/minute")
@@ -1090,9 +1090,9 @@ def explorer_audits(request: Request):
     
     return {"audits": audits}
 
-# ──────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 #  LEVEL 6: METRICS DASHBOARD ENDPOINTS
-# ──────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.get("/metrics/live")
 @limiter.limit("20/minute")
@@ -1188,7 +1188,7 @@ def explorer_badges(request: Request):
     
     return {"badges": badges_list}
 
-# ── Phase 2 New Endpoints ──
+# â”€â”€ Phase 2 New Endpoints â”€â”€
 
 @app.delete("/watchlist/{program_id}")
 def delete_watchlist(program_id: str):
@@ -1242,3 +1242,4 @@ async def api_trigger_pause(program_id: str):
 @app.get("/threat-feed")
 def api_get_threat_feed():
     return {"feed": get_threat_feed(20)}
+
