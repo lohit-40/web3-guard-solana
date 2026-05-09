@@ -338,10 +338,16 @@ def get_risk_history(program_id: str, days: int = 7) -> list:
 def get_monitor_events(limit: int = 50) -> list:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, contract_address, event_type, details, agent_type, risk_before, risk_after, vuln_count, solana_proof_tx, timestamp FROM monitoring_events ORDER BY timestamp DESC LIMIT ?",
-        (limit,)
-    )
+    if DB_URL:
+        cursor.execute(
+            "SELECT id, contract_address, event_type, details, agent_type, risk_before, risk_after, vuln_count, solana_proof_tx, timestamp FROM monitoring_events ORDER BY timestamp DESC LIMIT %s",
+            (limit,)
+        )
+    else:
+        cursor.execute(
+            "SELECT id, contract_address, event_type, details, agent_type, risk_before, risk_after, vuln_count, solana_proof_tx, timestamp FROM monitoring_events ORDER BY timestamp DESC LIMIT ?",
+            (limit,)
+        )
     rows = cursor.fetchall()
     conn.close()
     return [
@@ -357,22 +363,20 @@ def get_monitor_events(limit: int = 50) -> list:
 def upsert_agent_memory(program_id: str, pattern_type: str):
     conn = get_connection()
     cursor = conn.cursor()
-    # Try update first, then insert
-    cursor.execute(
-        "SELECT id FROM agent_memory WHERE program_id=? AND pattern_type=?",
-        (program_id, pattern_type)
-    )
-    row = cursor.fetchone()
-    if row:
-        cursor.execute(
-            "UPDATE agent_memory SET occurrence_count=occurrence_count+1, last_seen=CURRENT_TIMESTAMP WHERE id=?",
-            (row[0],)
-        )
+    if DB_URL:
+        cursor.execute("SELECT id FROM agent_memory WHERE program_id=%s AND pattern_type=%s", (program_id, pattern_type))
+        row = cursor.fetchone()
+        if row:
+            cursor.execute("UPDATE agent_memory SET occurrence_count=occurrence_count+1, last_seen=CURRENT_TIMESTAMP WHERE id=%s", (row[0],))
+        else:
+            cursor.execute("INSERT INTO agent_memory (program_id, pattern_type) VALUES (%s,%s)", (program_id, pattern_type))
     else:
-        cursor.execute(
-            "INSERT INTO agent_memory (program_id, pattern_type) VALUES (?,?)",
-            (program_id, pattern_type)
-        )
+        cursor.execute("SELECT id FROM agent_memory WHERE program_id=? AND pattern_type=?", (program_id, pattern_type))
+        row = cursor.fetchone()
+        if row:
+            cursor.execute("UPDATE agent_memory SET occurrence_count=occurrence_count+1, last_seen=CURRENT_TIMESTAMP WHERE id=?", (row[0],))
+        else:
+            cursor.execute("INSERT INTO agent_memory (program_id, pattern_type) VALUES (?,?)", (program_id, pattern_type))
     conn.commit()
     conn.close()
 
@@ -380,10 +384,16 @@ def upsert_agent_memory(program_id: str, pattern_type: str):
 def insert_threat_signature(sig_hash: str, vuln_type: str, description: str, program_id: str, severity: str):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT OR IGNORE INTO threat_signatures (signature_hash, vuln_type, description, detected_in_program, severity) VALUES (?,?,?,?,?)",
-        (sig_hash, vuln_type, description, program_id, severity)
-    )
+    if DB_URL:
+        cursor.execute(
+            "INSERT INTO threat_signatures (signature_hash, vuln_type, description, detected_in_program, severity) VALUES (%s,%s,%s,%s,%s) ON CONFLICT (signature_hash) DO NOTHING",
+            (sig_hash, vuln_type, description, program_id, severity)
+        )
+    else:
+        cursor.execute(
+            "INSERT OR IGNORE INTO threat_signatures (signature_hash, vuln_type, description, detected_in_program, severity) VALUES (?,?,?,?,?)",
+            (sig_hash, vuln_type, description, program_id, severity)
+        )
     conn.commit()
     conn.close()
 
@@ -391,10 +401,16 @@ def insert_threat_signature(sig_hash: str, vuln_type: str, description: str, pro
 def get_threat_feed(limit: int = 20) -> list:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT vuln_type, description, detected_in_program, severity, created_at FROM threat_signatures ORDER BY created_at DESC LIMIT ?",
-        (limit,)
-    )
+    if DB_URL:
+        cursor.execute(
+            "SELECT vuln_type, description, detected_in_program, severity, created_at FROM threat_signatures ORDER BY created_at DESC LIMIT %s",
+            (limit,)
+        )
+    else:
+        cursor.execute(
+            "SELECT vuln_type, description, detected_in_program, severity, created_at FROM threat_signatures ORDER BY created_at DESC LIMIT ?",
+            (limit,)
+        )
     rows = cursor.fetchall()
     conn.close()
     return [

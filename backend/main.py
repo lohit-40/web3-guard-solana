@@ -87,9 +87,11 @@ async def lifespan(app: FastAPI):
     ws_task       = None
     consumer_task = None
     try:
-        import sqlite3 as _sq
-        conn = _sq.connect("cache.db")
-        programs = [r[0] for r in conn.execute("SELECT contract_address FROM watchlist").fetchall()]
+        from database import get_connection
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT contract_address FROM watchlist")
+        programs = [r[0] for r in cursor.fetchall()]
         conn.close()
     except Exception:
         programs = []
@@ -136,8 +138,8 @@ app.add_middleware(
 async def scout_monitor_job():
     """Runs every minute: polls all watchlist programs, triggers Analyst on anomaly."""
     try:
-        import sqlite3 as _sq
-        conn   = _sq.connect("cache.db")
+        from database import get_connection
+        conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
             "SELECT contract_address, owner_wallet, discord_webhook, telegram_chat_id, source_code FROM watchlist"
@@ -603,15 +605,24 @@ class WatchlistCreate(BaseModel):
 
 @app.post("/watchlist")
 def api_add_watchlist(payload: WatchlistCreate):
-    import sqlite3
-    conn = sqlite3.connect("cache.db")
+    from database import get_connection
+    import os
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO watchlist (contract_address, added_by, risk_level, owner_wallet, discord_webhook, telegram_chat_id)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT (contract_address) DO UPDATE 
-        SET owner_wallet=excluded.owner_wallet, discord_webhook=excluded.discord_webhook, telegram_chat_id=excluded.telegram_chat_id
-    ''', (payload.contract_address, payload.added_by, payload.risk_level, payload.owner_wallet, payload.discord_webhook, payload.telegram_chat_id))
+    if os.getenv("DATABASE_URL"):
+        cursor.execute('''
+            INSERT INTO watchlist (contract_address, added_by, risk_level, owner_wallet, discord_webhook, telegram_chat_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (contract_address) DO UPDATE 
+            SET owner_wallet=EXCLUDED.owner_wallet, discord_webhook=EXCLUDED.discord_webhook, telegram_chat_id=EXCLUDED.telegram_chat_id
+        ''', (payload.contract_address, payload.added_by, payload.risk_level, payload.owner_wallet, payload.discord_webhook, payload.telegram_chat_id))
+    else:
+        cursor.execute('''
+            INSERT INTO watchlist (contract_address, added_by, risk_level, owner_wallet, discord_webhook, telegram_chat_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT (contract_address) DO UPDATE 
+            SET owner_wallet=excluded.owner_wallet, discord_webhook=excluded.discord_webhook, telegram_chat_id=excluded.telegram_chat_id
+        ''', (payload.contract_address, payload.added_by, payload.risk_level, payload.owner_wallet, payload.discord_webhook, payload.telegram_chat_id))
     conn.commit()
     conn.close()
 
@@ -622,14 +633,14 @@ def api_add_watchlist(payload: WatchlistCreate):
 
 @app.get("/watchlist")
 def api_get_watchlist():
-    import sqlite3
-    conn = sqlite3.connect("cache.db")
-    conn.row_factory = sqlite3.Row
+    from database import get_connection
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM watchlist")
+    columns = [col[0] for col in cursor.description]
     rows = cursor.fetchall()
     conn.close()
-    return [dict(ix) for ix in rows]
+    return [dict(zip(columns, row)) for row in rows]
 
 class TelegramWebhookPayload(BaseModel):
     update_id: int
@@ -651,7 +662,7 @@ async def telegram_webhook(request: Request):
             parts = text.split()
             prog  = parts[1] if len(parts) > 1 else None
             if not prog:
-                await reporter.send_telegram(chat_id, "â„¹ï¸ Usage: `/status <program_id>`")
+                await reporter.send_telegram(chat_id, "â„¹ï¸  Usage: `/status <program_id>`")
             else:
                 hist = get_risk_history(prog, days=1)
                 if hist:
@@ -667,17 +678,22 @@ async def telegram_webhook(request: Request):
                     await reporter.send_telegram(chat_id, f"No data for `{prog}`")
 
         elif text.startswith("/watchlist"):
-            import sqlite3
-            conn = sqlite3.connect("cache.db")
-            conn.row_factory = sqlite3.Row
+            from database import get_connection
+            import os
+            conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT contract_address, risk_level FROM watchlist WHERE telegram_chat_id=?", (chat_id,))
+            if os.getenv("DATABASE_URL"):
+                cursor.execute("SELECT contract_address, risk_level FROM watchlist WHERE telegram_chat_id=%s", (chat_id,))
+            else:
+                cursor.execute("SELECT contract_address, risk_level FROM watchlist WHERE telegram_chat_id=?", (chat_id,))
+            columns = [col[0] for col in cursor.description]
             rows = cursor.fetchall()
             conn.close()
 
-            if rows:
-                msg = "ðŸ‘ï¸ *Your Watchlist:*\n\n"
-                for r in rows:
+            rows_dict = [dict(zip(columns, r)) for r in rows]
+            if rows_dict:
+                msg = "ðŸ‘ ï¸  *Your Watchlist:*\n\n"
+                for r in rows_dict:
                     msg += f"- `{r['contract_address'][:8]}...` : [{r['risk_level']}]\n"
                 await reporter.send_telegram(chat_id, msg)
             else:
@@ -1038,8 +1054,8 @@ def explorer_stats(request: Request):
         print(f"Error fetching non_evm audits: {e}")
 
     try:
-        import sqlite3 as _sqlite3
-        _conn = _sqlite3.connect("cache.db")
+        from database import get_connection
+        _conn = get_connection()
         _cur = _conn.cursor()
         _cur.execute("SELECT SUM(audit_count) FROM users")
         user_scans = _cur.fetchone()[0] or 0
@@ -1233,26 +1249,36 @@ def explorer_badges(request: Request):
 
 @app.delete("/watchlist/{program_id}")
 def delete_watchlist(program_id: str):
-    import sqlite3
-    conn = sqlite3.connect("cache.db")
+    from database import get_connection
+    import os
+    conn = get_connection()
     cur = conn.cursor()
-    cur.execute("DELETE FROM watchlist WHERE contract_address=?", (program_id,))
+    if os.getenv("DATABASE_URL"):
+        cur.execute("DELETE FROM watchlist WHERE contract_address=%s", (program_id,))
+    else:
+        cur.execute("DELETE FROM watchlist WHERE contract_address=?", (program_id,))
     conn.commit()
     conn.close()
     return {"status": "removed"}
 
 @app.get("/watchlist/{program_id}/status")
 def get_watchlist_status(program_id: str):
-    import sqlite3
-    conn = sqlite3.connect("cache.db")
-    conn.row_factory = sqlite3.Row
+    from database import get_connection
+    import os
+    conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT risk_level, last_scanned FROM watchlist WHERE contract_address=?", (program_id,))
+    if os.getenv("DATABASE_URL"):
+        cur.execute("SELECT risk_level, last_scanned FROM watchlist WHERE contract_address=%s", (program_id,))
+    else:
+        cur.execute("SELECT risk_level, last_scanned FROM watchlist WHERE contract_address=?", (program_id,))
     row = cur.fetchone()
+    if row:
+        columns = [col[0] for col in cur.description]
+        row_dict = dict(zip(columns, row))
     conn.close()
     if not row:
         raise HTTPException(status_code=404, detail="Not on watchlist")
-    return dict(row)
+    return row_dict
 
 @app.get("/watchlist/{program_id}/history")
 def api_get_risk_history(program_id: str):
@@ -1266,10 +1292,14 @@ def api_get_monitor_events(limit: int = 20):
 async def api_trigger_pause(program_id: str):
     # This triggers the DefenderAgent manually (bypassing Analyst's critical check)
     # Finds the telegram chat ID from watchlist
-    import sqlite3
-    conn = sqlite3.connect("cache.db")
+    from database import get_connection
+    import os
+    conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT telegram_chat_id FROM watchlist WHERE contract_address=?", (program_id,))
+    if os.getenv("DATABASE_URL"):
+        cur.execute("SELECT telegram_chat_id FROM watchlist WHERE contract_address=%s", (program_id,))
+    else:
+        cur.execute("SELECT telegram_chat_id FROM watchlist WHERE contract_address=?", (program_id,))
     row = cur.fetchone()
     conn.close()
     
