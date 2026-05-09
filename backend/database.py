@@ -96,15 +96,23 @@ def init_db():
             )
         ''')
     
-    try:
-        cursor.execute("ALTER TABLE monitoring_events ADD COLUMN agent_type TEXT")
-        cursor.execute("ALTER TABLE monitoring_events ADD COLUMN risk_before TEXT")
-        cursor.execute("ALTER TABLE monitoring_events ADD COLUMN risk_after TEXT")
-        cursor.execute("ALTER TABLE monitoring_events ADD COLUMN vuln_count INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE monitoring_events ADD COLUMN vuln_delta INTEGER DEFAULT 0")
-        cursor.execute("ALTER TABLE monitoring_events ADD COLUMN solana_proof_tx TEXT")
-    except Exception:
-        pass
+    for col, col_type in [
+        ("agent_type", "TEXT"),
+        ("risk_before", "TEXT"),
+        ("risk_after", "TEXT"),
+        ("vuln_count", "INTEGER DEFAULT 0"),
+        ("vuln_delta", "INTEGER DEFAULT 0"),
+        ("solana_proof_tx", "TEXT")
+    ]:
+        try:
+            if DB_URL:
+                cursor.execute(f"SAVEPOINT add_col_{col}")
+            cursor.execute(f"ALTER TABLE monitoring_events ADD COLUMN {col} {col_type}")
+            if DB_URL:
+                cursor.execute(f"RELEASE SAVEPOINT add_col_{col}")
+        except Exception:
+            if DB_URL:
+                cursor.execute(f"ROLLBACK TO SAVEPOINT add_col_{col}")
 
     # risk_history
     if DB_URL:
@@ -133,31 +141,58 @@ def init_db():
         ''')
 
     # agent_memory — per-program pattern learning
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS agent_memory (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            program_id TEXT NOT NULL,
-            pattern_type TEXT,
-            first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            occurrence_count INTEGER DEFAULT 1,
-            status TEXT DEFAULT \'active\'
-        )
-    ''')
+    if DB_URL:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS agent_memory (
+                id SERIAL PRIMARY KEY,
+                program_id TEXT NOT NULL,
+                pattern_type TEXT,
+                first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                occurrence_count INTEGER DEFAULT 1,
+                status TEXT DEFAULT 'active'
+            )
+        ''')
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS agent_memory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                program_id TEXT NOT NULL,
+                pattern_type TEXT,
+                first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                occurrence_count INTEGER DEFAULT 1,
+                status TEXT DEFAULT 'active'
+            )
+        ''')
 
     # threat_signatures — cross-protocol threat intelligence
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS threat_signatures (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            signature_hash TEXT UNIQUE,
-            vuln_type TEXT,
-            description TEXT,
-            detected_in_program TEXT,
-            affected_programs TEXT,
-            severity TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
+    if DB_URL:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS threat_signatures (
+                id SERIAL PRIMARY KEY,
+                signature_hash TEXT UNIQUE,
+                vuln_type TEXT,
+                description TEXT,
+                detected_in_program TEXT,
+                affected_programs TEXT,
+                severity TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS threat_signatures (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                signature_hash TEXT UNIQUE,
+                vuln_type TEXT,
+                description TEXT,
+                detected_in_program TEXT,
+                affected_programs TEXT,
+                severity TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
 
     conn.commit()
     conn.close()
