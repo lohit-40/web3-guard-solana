@@ -228,7 +228,8 @@ def health_check():
     }
 
 @app.get("/monitoring/status")
-def monitoring_status():
+@limiter.limit("30/minute")
+def monitoring_status(request: Request):
     """Returns real-time agent status for the frontend dashboard."""
     baselines = {
         pid: {
@@ -604,7 +605,8 @@ class WatchlistCreate(BaseModel):
     telegram_chat_id: Optional[str] = None
 
 @app.post("/watchlist")
-def api_add_watchlist(payload: WatchlistCreate):
+@limiter.limit("20/minute")
+def api_add_watchlist(request: Request, payload: WatchlistCreate):
     from database import get_connection
     import os
     conn = get_connection()
@@ -632,7 +634,8 @@ def api_add_watchlist(payload: WatchlistCreate):
     return {"status": "success", "program": payload.contract_address, "ws_monitoring": "live"}
 
 @app.get("/watchlist")
-def api_get_watchlist():
+@limiter.limit("30/minute")
+def api_get_watchlist(request: Request):
     from database import get_connection
     conn = get_connection()
     cursor = conn.cursor()
@@ -1314,3 +1317,16 @@ async def api_trigger_pause(program_id: str):
 def api_get_threat_feed():
     return {"feed": get_threat_feed(20)}
 
+class LearnRequest(BaseModel):
+    vulnerability_type: str
+    lesson_text: str
+
+@app.post("/memory/learn")
+def api_teach_memory(req: LearnRequest):
+    """API endpoint to explicitly feed verified vulnerability lessons into the agent's RAG memory."""
+    try:
+        from memory import teach_memory
+        result = teach_memory(req.vulnerability_type, req.lesson_text)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

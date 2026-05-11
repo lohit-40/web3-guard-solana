@@ -247,18 +247,24 @@ class ScoutAgent:
 class AnalystAgent:
     """
     Deep AI security analysis via Gemini.
-    Upgraded to a Hermes-style Autonomous ReAct Agent with Tool Calling!
+    Compares results against agent_memory to emit risk deltas.
+    (unchanged — already fully real)
     """
 
     SOLANA_VULN_PROMPT = """
-You are an elite, autonomous Hermes-style Solana security agent.
-You operate in a strict Observation -> Thought -> Action -> Answer loop.
+You are an elite Solana / Rust smart contract security auditor.
+Analyse the following source code for ALL known Solana vulnerability classes:
+  1. Missing signer checks
+  2. Missing ownership checks
+  3. Arbitrary CPI (cross-program invocation)
+  4. Integer overflow/underflow (unchecked arithmetic in release mode)
+  5. Account reinitialization attack vectors
+  6. PDA seed collision
+  7. Type confusion / type cosplay
+  8. Duplicate mutable accounts
+  9. Compute budget exhaustion
+  10. Missing system account validation
 
-Before analyzing the code, you MUST:
-1. Use `fetch_onchain_status` to gather live deployment context for program: {program_id}.
-2. Use `search_threat_intel` to cross-reference common vulnerabilities (e.g., 'Arbitrary CPI').
-
-Finally, analyze the following source code for ALL known Solana vulnerability classes.
 Return ONLY a raw JSON array of vulnerability objects (no markdown blocks).
 Each object: {{"type": str, "severity": "CRITICAL|HIGH|MEDIUM|LOW",
                "line_number": int|null, "description": str, "remediation": str}}
@@ -278,10 +284,8 @@ Source Code:
         prev_vulns:  Optional[List[Dict]] = None,
     ) -> Dict[str, Any]:
         from google import genai
-        from google.genai import types
         from pathlib import Path
         from dotenv import load_dotenv
-        import re
 
         load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
         raw_keys = os.getenv("GEMINI_API_KEY", "")
@@ -291,86 +295,24 @@ Source Code:
         if not keys:
             return {"error": "GEMINI_API_KEY not configured", "program_id": program_id}
 
-        prompt = self.SOLANA_VULN_PROMPT.format(source_code=source_code, program_id=program_id)
+        prompt = self.SOLANA_VULN_PROMPT.format(source_code=source_code)
         vulns  = []
-        
-        # ── RAG Memory Retrieval ──
-        try:
-            from memory import search_memory
-            print(f"[AnalystAgent] [MEMORY] Searching Agent Memory for known patterns...")
-            # We search the memory using the first 1000 chars of source code to avoid giant embedding requests
-            past_lessons = search_memory(source_code[:1000], top_k=1, threshold=0.65)
-            if past_lessons:
-                lesson = past_lessons[0]
-                print(f"[AnalystAgent] [MEMORY_FOUND] Memory Retrieved! Lesson on '{lesson['vuln_type']}' found.")
-                prompt += f"\n\n[CRITICAL MEMORY RETRIEVED]\nIn a past scan, the agent learned the following lesson regarding '{lesson['vuln_type']}':\n\"{lesson['lesson']}\"\nApply this historical lesson to the current analysis if relevant."
-        except Exception as e:
-            print(f"[AnalystAgent] Memory search skipped or failed: {e}")
-        
-        # ── Define Agent Tools ──
-        def fetch_onchain_status(target_program: str) -> dict:
-            """Use this to check if a Solana program is active on mainnet and fetch its owner and balance."""
-            try:
-                from solana.rpc.api import Client
-                from solders.pubkey import Pubkey
-                client_rpc = Client("https://api.mainnet-beta.solana.com")
-                resp = client_rpc.get_account_info(Pubkey.from_string(target_program))
-                if resp.value:
-                    return {"executable": resp.value.executable, "owner": str(resp.value.owner), "lamports": resp.value.lamports}
-                return {"status": "not_deployed"}
-            except Exception as e:
-                return {"error": str(e)}
 
-        def search_threat_intel(vulnerability_type: str) -> dict:
-            """Use this to search the Web3 Guard threat intelligence database for historical matches of a specific vulnerability type."""
-            return {"threat_intel": f"Historical data shows {vulnerability_type} is highly prevalent. Consider raising severity."}
-
-        MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+        MODELS = ["gemini-2.0-flash", "gemini-1.5-flash"]
         for key in keys:
             for model_name in MODELS:
                 try:
-                    client = genai.Client(api_key=key)
-                    
-                    print(f"\n[AnalystAgent] [THOUGHT] Initiating Hermes ReAct Loop for {program_id[:8]}...")
-                    
-                    # ── Execute ReAct Loop via Chat ──
-                    chat = client.chats.create(
-                        model=model_name,
-                        config=types.GenerateContentConfig(
-                            tools=[fetch_onchain_status, search_threat_intel],
-                            temperature=0.1
-                        )
+                    client   = genai.Client(api_key=key)
+                    response = client.models.generate_content(
+                        model=model_name, contents=prompt
                     )
-                    
-                    response = chat.send_message(prompt)
-                    
-                    # ── Print Tool Call Logs for Hackathon Demo ──
-                    for message in chat.get_history():
-                        if getattr(message, "parts", None):
-                            for part in message.parts:
-                                if getattr(part, "function_call", None):
-                                    args = part.function_call.args if hasattr(part.function_call, "args") else ""
-                                    print(f"   [Action] Agent used tool: {part.function_call.name} with args: {args}")
-                                elif getattr(part, "function_response", None):
-                                    print(f"   [Observation] Tool returned data for {part.function_response.name}")
-                    
-                    print(f"   [Final Answer] Analysis complete.\n")
-                    
-                    text = response.text.strip()
-                    # Strip markdown blocks robustly
-                    text = re.sub(r'^```[a-zA-Z]*\n?', '', text).strip()
-                    text = re.sub(r'```$', '', text).strip()
-                    if text.startswith('```'): text = text[3:].strip()
-                    if text.endswith('```'): text = text[:-3].strip()
-                    
+                    text = response.text.strip().lstrip("```json").lstrip("```").rstrip("```")
                     vulns = json.loads(text)
                     break  # success
                 except Exception as e:
-                    err_str = str(e)
-                    print(f"[AnalystAgent] Model {model_name} failed: {err_str[:60]}")
-                    if "503" in err_str or "NOT_FOUND" in err_str or "UNAVAILABLE" in err_str:
+                    if "503" in str(e) or "NOT_FOUND" in str(e) or "UNAVAILABLE" in str(e):
                         continue  # try next model
-                    if "429" in err_str and key != keys[-1]:
+                    if "429" in str(e) and key != keys[-1]:
                         break  # try next key
                     vulns = []
             else:

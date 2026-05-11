@@ -29,6 +29,8 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
+      - '--timeout'
+      - '300s'
 
 images:
   - '$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/web3guard-backend:$COMMIT_SHA'
