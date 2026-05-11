@@ -9,14 +9,23 @@
 
 Web3 Guard is the **world's first autonomous multi-agent security monitoring system for Solana programs**. Instead of one-time audits costing $50K–$500K, we provide continuous 24/7 AI-powered surveillance for **$99–$2,000/month**.
 
-### The 4-Agent Architecture
+### The Autonomous ReAct Agent Architecture
 
-| Agent | Role | Runs |
-|-------|------|------|
-| 🤖 **Scout** | Monitors Solana programs via Helius RPC for transaction anomalies | Every 60s |
-| 🔬 **Analyst** | Deep AI security scan via Gemini 2.5 Flash on anomaly | On anomaly |
-| 📡 **Reporter** | Sends Telegram/Discord alerts + anchors Proof-of-Audit on Solana Devnet | On scan |
-| 🛡️ **Defender** | Proposes protocol pause via Telegram multisig approval | On CRITICAL |
+We upgraded our standard LLM pipeline to a **Hermes-Style ReAct (Reasoning and Acting) Agent Framework**. The system doesn't just pass code to an LLM—it autonomously "thinks" and actively uses tools to verify live state before making a decision.
+
+| Agent | Role | Execution Flow |
+|-------|------|----------------|
+| 🤖 **Scout** | Anomaly Detection | Monitors Solana programs via Helius RPC. If tx rate or fail rate spikes, it triggers the Analyst. |
+| 🔬 **Analyst** | ReAct Security Engine | Uses **Gemini 2.5** to enter a ReAct Loop (`Thought -> Action -> Observation -> Final Answer`). It actively calls RPC tools (e.g. `fetch_onchain_status`) to verify live state. |
+| 🧠 **Memory** | Persistent RAG DB | A PostgreSQL-backed Vector Database. The Analyst performs a cosine similarity search on historical scans before analyzing, ensuring it learns from past mistakes. |
+| 📡 **Reporter** | On-Chain Verification | Anchors a cryptographically secure `Proof-of-Audit` hash directly to a smart contract to ensure the scan wasn't tampered with. |
+| 🛡️ **Defender**| Automated Multisig | If a `CRITICAL` severity vulnerability is found, it automatically proposes a protocol pause directly to the developers via Telegram. |
+
+### 🧠 Self-Improving Persistent Memory
+The Analyst Agent is fully stateful. Whenever a new vulnerability type is confirmed, it is securely embedded (using `gemini-embedding-001`) and stored in a PostgreSQL `rag_memory` table. On all future scans, the Agent pulls related lessons via semantic search, dramatically reducing hallucinations.
+
+### ⚡ Cloud Run CI/CD Integration
+Web3 Guard is fully production-ready. We utilize Google Cloud Build (`cloudbuild.yaml`) to automatically compile and deploy the backend to Google Cloud Run upon every Git push. The service is explicitly configured with a **300-second execution timeout** to allow the ReAct Agent plenty of time to process complex, multi-tool reasoning loops safely.
 
 ### What We Scan For (Top 10 Solana Vulnerabilities)
 

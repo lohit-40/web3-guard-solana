@@ -35,10 +35,10 @@ export default function About() {
                 <div className="p-4 bg-brutal-text border-2 border-brutal-text group-hover:bg-brutal-bg group-hover:border-brutal-bg transition-colors">
                   <Cpu className="w-8 h-8 text-brutal-bg group-hover:text-brutal-text" />
                 </div>
-                <h2 className="text-3xl font-bold tracking-tighter lowercase">Gemini AI Engine</h2>
+                <h2 className="text-3xl font-bold tracking-tighter lowercase">Hermes-Style ReAct Agent</h2>
               </div>
               <p className="text-brutal-text/80 group-hover:text-brutal-bg/90 leading-relaxed font-medium text-lg">
-                Unlike traditional static analyzers that rely on rigid regex rules, Web3 Guard uses a fine-tuned Gemini 2.5 LLM to completely understand the architectural context of your Solidity code, detecting complex, multi-line vulnerabilities like reentrancy and access control flaws with human-level reasoning.
+                Unlike traditional static analyzers that rely on rigid regex rules, Web3 Guard uses an autonomous ReAct (Reasoning and Acting) loop powered by Gemini 2.5. The Analyst Agent actively "thinks" through the code, dynamically calls RPC tools to verify live on-chain state, and hunts down complex, multi-line vulnerabilities with human-level reasoning.
               </p>
             </motion.div>
 
@@ -53,10 +53,10 @@ export default function About() {
                 <div className="p-4 bg-brutal-text border-2 border-brutal-text group-hover:bg-brutal-bg group-hover:border-brutal-bg transition-colors">
                   <Code2 className="w-8 h-8 text-brutal-bg group-hover:text-brutal-text" />
                 </div>
-                <h2 className="text-3xl font-bold tracking-tighter lowercase">Automated Remediation</h2>
+                <h2 className="text-3xl font-bold tracking-tighter lowercase">Self-Improving RAG Memory</h2>
               </div>
               <p className="text-brutal-text/80 group-hover:text-brutal-bg/90 leading-relaxed font-medium text-lg">
-                Identifying a bug is only half the battle. Our AI engine natively rewrites your deployed code into secure implementations using industry standards (like the Checks-Effects-Interactions pattern), seamlessly displayed in the main dashboard.
+                Web3 Guard doesn't just scan; it learns. Using a built-in persistent PostgreSQL vector database, the agent stores past vulnerability patterns. Before executing a scan, it performs a cosine similarity search to retrieve relevant historical lessons and injects them into its active context, ensuring it never makes the same mistake twice.
               </p>
             </motion.div>
 
@@ -65,6 +65,24 @@ export default function About() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4, duration: 0.6 }}
+              className="p-8 md:p-12 border-4 border-brutal-text bg-brutal-bg hover:bg-brutal-text hover:text-brutal-bg transition-colors group shadow-[12px_12px_0px_0px_rgba(28,28,28,1)]"
+            >
+              <div className="flex items-center gap-6 mb-6 text-brutal-text group-hover:text-brutal-bg">
+                <div className="p-4 bg-brutal-text border-2 border-brutal-text group-hover:bg-brutal-bg group-hover:border-brutal-bg transition-colors">
+                  <Code2 className="w-8 h-8 text-brutal-bg group-hover:text-brutal-text" />
+                </div>
+                <h2 className="text-3xl font-bold tracking-tighter lowercase">Automated Remediation</h2>
+              </div>
+              <p className="text-brutal-text/80 group-hover:text-brutal-bg/90 leading-relaxed font-medium text-lg">
+                Identifying a bug is only half the battle. Our AI engine natively rewrites your deployed code into secure implementations using industry standards (like the Checks-Effects-Interactions pattern), seamlessly displayed in the main dashboard.
+              </p>
+            </motion.div>
+
+            {/* Feature 4 */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5, duration: 0.6 }}
               className="p-8 md:p-12 border-4 border-brutal-text bg-brutal-bg hover:bg-brutal-text hover:text-brutal-bg transition-colors group shadow-[12px_12px_0px_0px_rgba(28,28,28,1)]"
             >
               <div className="flex items-center gap-6 mb-6 text-brutal-text group-hover:text-brutal-bg">
